@@ -1,19 +1,19 @@
 parallel_minion
 ===============
 
-Parallel Minion supports easily handing work off to Minions (Threads) so that tasks
+Parallel Minion supports easily handing work off to minions (Threads) so that tasks
 that would normally be performed sequentially can easily be executed in parallel.
 This allows Ruby and Rails applications to very easily do many tasks at the same
 time so that results are returned more quickly.
 
-Our use-case for Minions is where an application grew to a point where it would
+Our use-case for minions is where an application grew to a point where it would
 be useful to run some of the steps in fulfilling a single request in parallel.
 
 ## Features:
 
 Exceptions
 
-- Any exceptions raised in Minions are captured and propagated back to the
+- Any exceptions raised in minions are captured and propagated back to the
   calling thread when #result is called
 - Makes exception handling simple with a drop-in replacement for existing code
 - Avoids having to implement more complex actors and supervisors required
@@ -21,23 +21,25 @@ Exceptions
 
 Timeouts
 
-- Timeout when a Minion does not return within a specified time
-- Timeouts are a useful feature when one of the Minions fails to respond in a
+- Timeout when a minion does not return within a specified time
+- Timeouts are a useful feature when one of the minions fails to respond in a
   reasonable amount of time. For example when a call to a remote service hangs
   we can send back a partial response of other work that was completed rather
   than just "hanging" or failing completely.
 
 Logging
 
-- Built-in support to log the duration of all Minion tasks to make future analysis
+- Built-in support to log the duration of all minion tasks to make future analysis
   of performance issues much easier
 - Logs any exceptions thrown to assist with problem diagnosis
 - Logging tags from the current thread are propagated to the minions thread
+- The name of the thread in log entries is set to the description supplied for
+  the minion to make it easy to distinguish log entries by minion / thread
 
 Rails Support
 
 - When used in a Rails environment the current scope of specified models can be
-  propagated to the Minions thread
+  propagated to the minions thread
 
 ## Example
 
@@ -50,7 +52,7 @@ end
 
 # Do other work here...
 
-# Retrieve the result of the Minion
+# Retrieve the result of the minion
 count = minion.result
 
 puts "Found #{count} records"
@@ -59,7 +61,7 @@ puts "Found #{count} records"
 ## Example
 
 For example, in the code below there are several steps that are performed
-sequentially and does not yet use Minions:
+sequentially and does not yet use minions:
 
 ```ruby
 # Contrived example to show how to do parallel code execution
@@ -206,12 +208,21 @@ end
 
 The above #process_request method should now take on average 1,810 milli-seconds
 which is significantly faster than the 3,780 milli-seconds it took to perform
-the exact same request prior to using Minions.
+the exact same request prior to using minions.
 
-The exact breakdown of which calls to do in the main thread versus a Minion is determined
+The exact breakdown of which calls to do in the main thread versus a minion is determined
 through experience and trial and error over time. The key is logging the duration
-of each call which Minion does by default so that the exact processing breakdown
+of each call which minion does by default so that the exact processing breakdown
 can be fine-tuned over time.
+
+## Notes:
+
+- When using JRuby it is important to enable it's built-in thread-pooling by
+  adding the following line to .jrubyrc, or setting the appropriate command line option:
+
+```ruby
+thread.pool.enabled=true
+```
 
 Meta
 ----
