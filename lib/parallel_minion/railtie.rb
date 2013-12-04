@@ -9,7 +9,7 @@ module ParallelMinion #:nodoc:
     #   Rails::Application.configure do
     #
     #     # Run Minions in the current thread to make debugging easier
-    #     config.parallel_minion.synchronous = true
+    #     config.parallel_minion.enabled = false
     #
     #     # Add a model so that its current scope is copied to the Minion
     #     config.parallel_minion.scoped_classes << MyScopedModel

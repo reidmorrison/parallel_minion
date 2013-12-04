@@ -2,6 +2,5 @@
 nbproject/*
 *.gem
 .idea/*
-Gemfile.lock
 test.rb
 *.sqlite3

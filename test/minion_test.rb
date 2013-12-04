@@ -16,10 +16,10 @@ class MinionTest < Test::Unit::TestCase
 
   context ParallelMinion::Minion do
 
-    [false, true].each do |synchronous|
-      context ".new with synchronous: #{synchronous.inspect}" do
+    [false, true].each do |enabled|
+      context ".new with enabled: #{enabled.inspect}" do
         setup do
-          ParallelMinion::Minion.synchronous = synchronous
+          ParallelMinion::Minion.enabled = enabled
         end
 
         should 'without parameters' do
@@ -96,8 +96,8 @@ class MinionTest < Test::Unit::TestCase
 
         should 'timeout' do
           minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) { sleep 1 }
-          # Only Parallel Minions time-out when they exceed timeout
-          unless synchronous
+          # Only Parallel Minions time-out when they exceed the timeout
+          if enabled
             assert_equal nil, minion.result
           end
         end

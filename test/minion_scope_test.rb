@@ -34,8 +34,8 @@ end
 class MinionScopeTest < Test::Unit::TestCase
 
   context ParallelMinion::Minion do
-    [false, true].each do |synchronous|
-      context ".new with synchronous: #{synchronous.inspect}" do
+    [false, true].each do |enabled|
+      context ".new with enabled: #{enabled.inspect}" do
         setup do
           Person.create(name: 'Jack', state: 'FL', zip_code: 38729)
           Person.create(name: 'John', state: 'FL', zip_code: 35363)
@@ -45,7 +45,7 @@ class MinionScopeTest < Test::Unit::TestCase
           Person.create(name: 'James', state: 'CA', zip_code: 123123)
           # Instruct Minions to adhere to any dynamic scopes for Person model
           ParallelMinion::Minion.scoped_classes << Person
-          ParallelMinion::Minion.synchronous = synchronous
+          ParallelMinion::Minion.enabled = enabled
         end
 
         teardown do

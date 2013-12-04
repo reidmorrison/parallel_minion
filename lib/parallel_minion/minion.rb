@@ -15,24 +15,23 @@ module ParallelMinion
     # Give an infinite amount of time to wait for a Minion to complete a task
     INFINITE = -1
 
-    # Sets whether to run in Synchronous mode
+    # Sets whether minions are enabled to run in their own threads
     #
-    # By Setting synchronous to true all Minions that have not yet been started
-    # will run in the thread from which they are started and not in their own
-    # threads
+    # By Setting _enabled_ to false all Minions that have not yet been started
+    # will run in the thread from which it is created and not on its own thread
     #
     # This is useful:
     # - to run tests under the Capybara gem
     # - when debugging code so that all code is run sequentially in the current thread
     #
-    # Note: Do not set this setting to true in Production
-    def self.synchronous=(synchronous)
-      @@synchronous = synchronous
+    # Note: Not recommended to set this setting to false in Production
+    def self.enabled=(enabled)
+      @@enabled = enabled
     end
 
-    # Returns whether running in Synchronous mode
-    def self.synchronous?
-      @@synchronous
+    # Returns whether minions are enabled to run in their own threads
+    def self.enabled?
+      @@enabled
     end
 
     # The list of classes for which the current scope must be copied into the
@@ -66,14 +65,14 @@ module ParallelMinion
     #     - :timeout does not affect what happens to the Minion running the
     #       the task, it only affects how long #result will take to return.
     #     - The Minion will continue to run even after the timeout has been exceeded
-    #     - If :synchronous is true, or ParallelMinion::Minion.synchronous is
-    #       set to true, then :timeout is ignored and assumed to be Minion::INFINITE
+    #     - If :enabled is false, or ParallelMinion::Minion.enabled is false,
+    #       then :timeout is ignored and assumed to be Minion::INFINITE
     #       since the code is run in the calling thread when the Minion is created
     #
-    #   :synchronous [Boolean]
-    #     Whether the Minion should run in the current thread
+    #   :enabled [Boolean]
+    #     Whether the minion should run in a separate thread
     #     Not recommended in Production, but is useful for debugging purposes
-    #     Default: false
+    #     Default: ParallelMinion::Minion.enabled?
     #
     #   *args
     #     Any number of arguments can be supplied that are passed into the block
@@ -112,20 +111,24 @@ module ParallelMinion
 
       options = self.class.extract_options!(args).dup
 
-      @timeout  = (options.delete(:timeout) || Minion::INFINITE).to_f
+      @timeout       = (options.delete(:timeout) || Minion::INFINITE).to_f
       @description   = (options.delete(:description) || 'Minion').to_s
       @log_exception = options.delete(:log_exception)
-      @synchronous   = options.delete(:synchronous) || self.class.synchronous?
+      @enabled       = options.delete(:enabled)
+      @enabled       = self.class.enabled? if @enabled.nil?
 
       # Warn about any unknown options.
-      options.each_pair { |key,val| logger.warn "Ignoring unknown option: #{key.inspect} => #{val.inspect}" }
+      options.each_pair do |key,val|
+        logger.warn "Ignoring unknown option: #{key.inspect} => #{val.inspect}"
+        warn "ParallelMinion::Minion Ignoring unknown option: #{key.inspect} => #{val.inspect}"
+      end
 
       # Run the supplied block of code in the current thread for testing or
       # debugging purposes
-      if @synchronous == true
+      if @enabled == false
         begin
-          logger.info("Started synchronously #{@description}")
-          logger.benchmark_info("Completed synchronously #{@description}", log_exception: @log_exception) do
+          logger.info("Started in the current thread: #{@description}")
+          logger.benchmark_info("Completed in the current thread: #{@description}", log_exception: @log_exception) do
             @result = instance_exec(*args, &block)
           end
         rescue Exception => exc
@@ -189,12 +192,12 @@ module ParallelMinion
 
     # Returns [Boolean] whether the minion is still working on the assigned task
     def working?
-      synchronous? ? false : @thread.alive?
+      enabled? ? @thread.alive? : false
     end
 
     # Returns [Boolean] whether the minion has completed working on the task
     def completed?
-      synchronous? ? true : @thread.stop?
+      enabled? ? @thread.stop? : true
     end
 
     # Returns [Boolean] whether the minion failed while performing the assigned task
@@ -211,9 +214,9 @@ module ParallelMinion
       duration <= 0 ? 0 : duration
     end
 
-    # Returns [Boolean] whether synchronous mode has been enabled for this minion instance
-    def synchronous?
-      @synchronous
+    # Returns [Boolean] whether this minion is enabled to run in a separate thread
+    def enabled?
+      @enabled
     end
 
     # Returns the current scopes for each of the models for which scopes will be
@@ -225,7 +228,7 @@ module ParallelMinion
 
     protected
 
-    @@synchronous = false
+    @@enabled = true
     @@scoped_classes = []
 
     # Extract options from a hash.

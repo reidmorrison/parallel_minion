@@ -1,7 +1,7 @@
 parallel_minion
 ===============
 
-Parallel Minion supports easily handing work off to minions (Threads) so that tasks
+Parallel Minion supports easily handing work off to minions (threads) so that tasks
 that would normally be performed sequentially can easily be executed in parallel.
 This allows Ruby and Rails applications to very easily do many tasks at the same
 time so that results are returned more quickly.
@@ -214,6 +214,23 @@ The exact breakdown of which calls to do in the main thread versus a minion is d
 through experience and trial and error over time. The key is logging the duration
 of each call which minion does by default so that the exact processing breakdown
 can be fine-tuned over time.
+
+## Disabling Minions
+
+In the event that strange problems are occurring in production and no one is
+sure if it is due to running the minion tasks in parallel, it is simple to make
+all minion tasks run in the calling thread.
+
+It may also be useful to disable minions on a single production server to compare
+its performance to that of the servers running with minions active.
+
+To disable minions / make them run in the calling thread, add the following
+lines to config/environments/production.rb:
+
+```ruby
+  # Make minions run immediately in the current thread
+  config.parallel_minion.enabled = false
+```
 
 ## Notes:
 
