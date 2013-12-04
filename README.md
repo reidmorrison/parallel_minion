@@ -15,7 +15,9 @@ Exceptions
 
 - Any exceptions raised in Minions are captured and propagated back to the
   calling thread when #result is called
-- Makes exception handling simple with a drop-in replacement in existing code
+- Makes exception handling simple with a drop-in replacement for existing code
+- Avoids having to implement more complex actors and supervisors required
+  by some concurrency frameworks
 
 Timeouts
 
@@ -29,21 +31,35 @@ Logging
 
 - Built-in support to log the duration of all Minion tasks to make future analysis
   of performance issues much easier
-- Logs any exceptions thrown to assist fwith problem diagnosis
+- Logs any exceptions thrown to assist with problem diagnosis
+- Logging tags from the current thread are propagated to the minions thread
+
+Rails Support
+
+- When used in a Rails environment the current scope of specified models can be
+  propagated to the Minions thread
 
 ## Example
 
 Simple example
 
 ```ruby
-ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in parallel', timeout: 1000) do |date|
+minion = ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in parallel', timeout: 1000) do |date|
   MyTable.where('created_at <= ?', date).count
 end
+
+# Do other work here...
+
+# Retrieve the result of the Minion
+count = minion.result
+
+puts "Found #{count} records"
 ```
 
 ## Example
 
-For example, in the code below there are several steps that are performed sequentially:
+For example, in the code below there are several steps that are performed
+sequentially and does not yet use Minions:
 
 ```ruby
 # Contrived example to show how to do parallel code execution
@@ -190,7 +206,7 @@ end
 
 The above #process_request method should now take on average 1,810 milli-seconds
 which is significantly faster than the 3,780 milli-seconds it took to perform
-the exact same request, but using only a single thread
+the exact same request prior to using Minions.
 
 The exact breakdown of which calls to do in the main thread versus a Minion is determined
 through experience and trial and error over time. The key is logging the duration
