@@ -241,6 +241,11 @@ lines to config/environments/production.rb:
 thread.pool.enabled=true
 ```
 
+
+## Compatibility
+
+ParallelMinion is tested against MRI 2.0.0, and JRuby 1.7.8.
+
 Meta
 ----
 
@@ -255,10 +260,6 @@ Author
 -------
 
 Reid Morrison :: reidmo@gmail.com :: @reidmorrison
-
-Contributors
-------------
-
 
 License
 -------

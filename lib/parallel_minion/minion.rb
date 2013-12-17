@@ -222,8 +222,7 @@ module ParallelMinion
     # Returns the current scopes for each of the models for which scopes will be
     # copied to the Minions
     def self.current_scopes
-      # Apparently #scoped is deprecated, but its replacement #all does not behave the same
-      @@scoped_classes.collect {|klass| klass.scoped.dup}
+      @@scoped_classes.collect {|klass| klass.all.dup}
     end
 
     protected

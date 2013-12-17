@@ -101,6 +101,28 @@ class MinionTest < Test::Unit::TestCase
             assert_equal nil, minion.result
           end
         end
+
+        should 'make description instance variable available' do
+          minion = ParallelMinion::Minion.new(description: 'Test') do
+            description
+          end
+          assert_equal 'Test', minion.result
+        end
+
+        should 'make timeout instance variable available' do
+          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 1000 ) do
+            timeout
+          end
+          assert_equal 1000, minion.result
+        end
+
+        should 'make enabled? method available' do
+          minion = ParallelMinion::Minion.new(description: 'Test') do
+            enabled?
+          end
+          assert_equal enabled, minion.result
+        end
+
       end
 
     end

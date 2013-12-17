@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.platform    = Gem::Platform::RUBY
   spec.authors     = ['Reid Morrison']
   spec.email       = ['reidmo@gmail.com']
-  spec.homepage    = 'https://github.com/ClarityServices/semantic_logger'
+  spec.homepage    = 'https://github.com/reidmorrison/parallel_minion'
   spec.summary     = "Concurrent processing made easy with Minions (Threads)"
   spec.description = "Parallel Minion supports easily handing work off to Minions (Threads) so that tasks that would normally be performed sequentially can easily be executed in parallel"
   spec.files       = Dir["lib/**/*", "LICENSE.txt", "Rakefile", "README.md"]
