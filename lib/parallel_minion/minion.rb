@@ -140,7 +140,7 @@ module ParallelMinion
       tags = (logger.tags || []).dup
 
       # Copy current scopes for new thread. Only applicable for AR models
-      scopes = self.class.current_scopes.dup if defined?(ActiveRecord::Base)
+      scopes = self.class.current_scopes if defined?(ActiveRecord::Base)
 
       @thread = Thread.new(*args) do
         # Copy logging tags from parent thread
@@ -221,8 +221,14 @@ module ParallelMinion
 
     # Returns the current scopes for each of the models for which scopes will be
     # copied to the Minions
-    def self.current_scopes
-      @@scoped_classes.collect {|klass| klass.all.dup}
+    if  ActiveRecord::VERSION::MAJOR >= 4
+      def self.current_scopes
+        @@scoped_classes.collect {|klass| klass.all}
+      end
+    else
+      def self.current_scopes
+        @@scoped_classes.collect {|klass| klass.scoped}
+      end
     end
 
     protected
