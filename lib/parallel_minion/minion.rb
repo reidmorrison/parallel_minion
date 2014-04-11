@@ -113,6 +113,7 @@ module ParallelMinion
 
       @timeout       = (options.delete(:timeout) || Minion::INFINITE).to_f
       @description   = (options.delete(:description) || 'Minion').to_s
+      @metric        = options.delete(:metric)
       @log_exception = options.delete(:log_exception)
       @enabled       = options.delete(:enabled)
       @enabled       = self.class.enabled? if @enabled.nil?
@@ -128,7 +129,7 @@ module ParallelMinion
       if @enabled == false
         begin
           logger.info("Started in the current thread: #{@description}")
-          logger.benchmark_info("Completed in the current thread: #{@description}", log_exception: @log_exception) do
+          logger.benchmark_info("Completed in the current thread: #{@description}", log_exception: @log_exception, metric: @metric) do
             @result = instance_exec(*args, &block)
           end
         rescue Exception => exc

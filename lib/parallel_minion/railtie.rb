@@ -12,7 +12,10 @@ module ParallelMinion #:nodoc:
     #     config.parallel_minion.enabled = false
     #
     #     # Add a model so that its current scope is copied to the Minion
-    #     config.parallel_minion.scoped_classes << MyScopedModel
+    #     config.after_initialize do
+    #       # Perform in an after_initialize so that the model has been loaded
+    #       config.parallel_minion.scoped_classes << MyScopedModel
+    #     end
     #   end
     config.parallel_minion = ::ParallelMinion::Minion
 
