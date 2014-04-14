@@ -184,7 +184,12 @@ module ParallelMinion
       # Return nil if Minion is still working and has time left to finish
       if working?
         ms = time_left
-        return if @thread.join(ms.nil? ? nil: ms / 1000).nil?
+        logger.benchmark_info("Waited for Minion to complete: #{@description}", min_duration: 0.01) do
+          if @thread.join(ms.nil? ? nil: ms / 1000).nil?
+            logger.warn("Timed out waiting for result from Minion: #{@description}")
+            return
+          end
+        end
       end
 
       # Return the exception, if any, otherwise the task result
