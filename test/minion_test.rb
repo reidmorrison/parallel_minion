@@ -9,6 +9,11 @@ require 'parallel_minion'
 SemanticLogger.default_level = :trace
 SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter) if SemanticLogger.appenders.size == 0
 
+# Setup global callback for metric so that it can be tested below
+SemanticLogger.on_metric do |log_struct|
+  $log_struct = log_struct.dup
+end
+
 # Test ParallelMinion standalone without Rails
 # Run this test standalone to verify it has no Rails dependencies
 class MinionTest < Test::Unit::TestCase
@@ -20,6 +25,7 @@ class MinionTest < Test::Unit::TestCase
       context ".new with enabled: #{enabled.inspect}" do
         setup do
           ParallelMinion::Minion.enabled = enabled
+          $log_struct = nil
         end
 
         should 'without parameters' do
@@ -47,15 +53,15 @@ class MinionTest < Test::Unit::TestCase
           end
         end
 
-# TODO Blocks still have access to their original scope if variables cannot be
-#      resolved first by the parameters, then by the values in Minion itself
-#        should 'not have access to local variables' do
-#          name = 'Jack'
-#          minion = ParallelMinion::Minion.new(description: 'Test') { puts name }
-#          assert_raise NameError do
-#            minion.result
-#          end
-#        end
+        # TODO Blocks still have access to their original scope if variables cannot be
+        #      resolved first by the parameters, then by the values in Minion itself
+        #        should 'not have access to local variables' do
+        #          name = 'Jack'
+        #          minion = ParallelMinion::Minion.new(description: 'Test') { puts name }
+        #          assert_raise NameError do
+        #            minion.result
+        #          end
+        #        end
 
         should 'run minion' do
           hash = { value: 23 }
@@ -79,6 +85,22 @@ class MinionTest < Test::Unit::TestCase
             end
           end
           assert_equal 'TAG', minion.result
+        end
+
+        should 'include metric' do
+          metric_name = '/Custom/metric'
+          hash = { value: 23 }
+          value = 47
+          minion = ParallelMinion::Minion.new(hash, description: 'Test', metric: metric_name) do |h|
+            value = 321
+            h[:value] = 123
+            456
+          end
+          assert_equal 456, minion.result
+          assert_equal 123, hash[:value]
+          assert_equal 321, value
+          SemanticLogger.flush
+          assert_equal metric_name, $log_struct.metric
         end
 
         should 'handle multiple minions concurrently' do

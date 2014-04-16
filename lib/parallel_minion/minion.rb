@@ -152,7 +152,7 @@ module ParallelMinion
           logger.info("Started #{@description}")
 
           begin
-            logger.benchmark_info("Completed #{@description}", log_exception: @log_exception) do
+            logger.benchmark_info("Completed #{@description}", log_exception: @log_exception, metric: @metric) do
               # Use the current scope for the duration of the task execution
               if scopes.nil? || (scopes.size == 0)
                 @result = instance_exec(*args, &block)
