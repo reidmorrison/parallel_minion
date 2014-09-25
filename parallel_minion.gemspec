@@ -11,8 +11,8 @@ Gem::Specification.new do |spec|
   spec.authors     = ['Reid Morrison']
   spec.email       = ['reidmo@gmail.com']
   spec.homepage    = 'https://github.com/reidmorrison/parallel_minion'
-  spec.summary     = "Concurrent processing made easy with Minions (Threads)"
-  spec.description = "Parallel Minion supports easily handing work off to Minions (Threads) so that tasks that would normally be performed sequentially can easily be executed in parallel"
+  spec.summary     = "Pragmatic approach to parallel and asynchronous processing in Ruby"
+  spec.description = "Parallel Minion allows you to take existing blocks of code and wrap them in a minion so that they can run asynchronously in a separate thread"
   spec.files       = Dir["lib/**/*", "LICENSE.txt", "Rakefile", "README.md"]
   spec.test_files  = Dir["test/**/*"]
   spec.license     = "Apache License V2.0"

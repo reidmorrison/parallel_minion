@@ -1,26 +1,50 @@
 parallel_minion
 ===============
 
-Minions are short-lived tasks defined using blocks of code in Ruby. Their only
-purpose is to run a block of code in a separate thread and then to return its result
-on completion.
+Pragmatic approach to parallel and asynchronous processing in Ruby
 
-Parallel Minion is a pragmatic approach to handing work off to minions (threads) so that tasks
-that would normally be performed sequentially can now be executed in parallel.
-This allows Ruby and Rails applications to quickly perform several tasks at the same
-time so that latency (overall processing time) is reduced.
+## Description
 
-Parallel Minion was created for a large Rails application that had been running for
-quite some time. The business needed the application to reduce latency times.
-The time to process key requests has already been reduced by over 30%. Latency will
-be reduced further as minions are used throughout the code-base.
+Parallel Minion allows you to take existing blocks of code and wrap them in a minion
+so that they can run asynchronously in a separate thread.
+The minion then passes back the result to the caller when or if requested.
+If any exceptions were thrown during the minion processing, it will be re-raised
+in the callers thread so that no additional work needs to be done when converting
+existing code to use minions.
+
+## Example
+
+```ruby
+minion = ParallelMinion::Minion.new(10.days.ago,
+            description: 'Doing something else in parallel',
+            timeout: 1000) do |date|
+  MyTable.where('created_at <= ?', date).count
+end
+
+# Do other work here...
+
+# Retrieve the result of the minion
+count = minion.result
+
+puts "Found #{count} records"
+```
 
 ## Documentation
 
 For complete documentation see: http://reidmorrison.github.io/parallel_minion
 
-Meta
-----
+## Production Use
+
+Parallel Minion is being used in a high performance, highly concurrent
+production environment running JRuby with Ruby on Rails on a Puma web server.
+Significant reduction in the time it takes to complete rails request processing
+has been achieved by moving existing blocks of code into Minions.
+
+## Installation
+
+    gem install parallel_minion
+
+## Meta
 
 * Code: `git clone git://github.com/reidmorrison/parallel_minion.git`
 * Home: <https://github.com/reidmorrison/parallel_minion>
@@ -29,13 +53,11 @@ Meta
 
 This project uses [Semantic Versioning](http://semver.org/).
 
-Author
--------
+## Author
 
-Reid Morrison :: reidmo@gmail.com :: @reidmorrison
+[Reid Morrison](https://github.com/reidmorrison) :: @reidmorrison
 
-License
--------
+## License
 
 Copyright 2013, 2014 Reid Morrison
 
