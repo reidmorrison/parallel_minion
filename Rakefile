@@ -1,15 +1,18 @@
-lib = File.expand_path('../lib/', __FILE__)
-$:.unshift lib unless $:.include?(lib)
-
-require 'rubygems'
-require 'rubygems/package'
 require 'rake/clean'
 require 'rake/testtask'
+
+$LOAD_PATH.unshift File.expand_path("../lib", __FILE__)
 require 'parallel_minion/version'
 
-desc "Build gem"
-task :gem  do |t|
-  Gem::Package.build(Gem::Specification.load('parallel_minion.gemspec'))
+task :gem do
+  system "gem build parallel_minion.gemspec"
+end
+
+task :publish => :gem do
+  system "git tag -a v#{ParallelMinion::VERSION} -m 'Tagging #{ParallelMinion::VERSION}'"
+  system "git push --tags"
+  system "gem push parallel_minion-#{ParallelMinion::VERSION}.gem"
+  system "rm parallel_minion-#{ParallelMinion::VERSION}.gem"
 end
 
 desc "Run Test Suite"
@@ -21,3 +24,5 @@ task :test do
 
   Rake::Task['functional'].invoke
 end
+
+task :default => :test
