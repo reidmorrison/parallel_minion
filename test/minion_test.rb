@@ -145,6 +145,13 @@ class MinionTest < Test::Unit::TestCase
           assert_equal enabled, minion.result
         end
 
+        should 'keep the original arguments' do
+          minion = ParallelMinion::Minion.new(1, 'data', 14.1, description: 'Test') do | num, str, float |
+            num + float
+          end
+          assert_equal 15.1, minion.result
+          assert_equal [ 1, 'data', 14.1 ], minion.arguments
+        end
       end
 
     end

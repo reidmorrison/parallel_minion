@@ -12,6 +12,9 @@ module ParallelMinion
     # Returns [Integer] the maximum duration in milli-seconds that the Minion may take to complete the task
     attr_reader :timeout
 
+    # Returns [Array<Object>] list of arguments in the order they were passed into the initializer
+    attr_reader :arguments
+
     # Give an infinite amount of time to wait for a Minion to complete a task
     INFINITE = -1
 
@@ -79,6 +82,8 @@ module ParallelMinion
     #     in the order they are listed
     #     It is recommended to duplicate and/or freeze objects passed as arguments
     #     so that they are not modified at the same time by multiple threads
+    #     These arguments are accessible while and after the minion is running
+    #     by calling #arguments
     #
     #   Proc / lambda
     #     A block of code must be supplied that the Minion will execute
@@ -106,11 +111,10 @@ module ParallelMinion
     #   end
     def initialize(*args, &block)
       raise "Missing mandatory block that Minion must perform" unless block
-      @start_time = Time.now
-      @exception = nil
-
-      options = self.class.extract_options!(args).dup
-
+      @start_time    = Time.now
+      @exception     = nil
+      @arguments     = args.dup
+      options        = self.class.extract_options!(@arguments)
       @timeout       = (options.delete(:timeout) || Minion::INFINITE).to_f
       @description   = (options.delete(:description) || 'Minion').to_s
       @metric        = options.delete(:metric)
@@ -119,7 +123,7 @@ module ParallelMinion
       @enabled       = self.class.enabled? if @enabled.nil?
 
       # Warn about any unknown options.
-      options.each_pair do |key,val|
+      options.each_pair do | key, val |
         logger.warn "Ignoring unknown option: #{key.inspect} => #{val.inspect}"
         warn "ParallelMinion::Minion Ignoring unknown option: #{key.inspect} => #{val.inspect}"
       end
@@ -130,7 +134,7 @@ module ParallelMinion
         begin
           logger.info("Started in the current thread: #{@description}")
           logger.benchmark_info("Completed in the current thread: #{@description}", log_exception: @log_exception, metric: @metric) do
-            @result = instance_exec(*args, &block)
+            @result = instance_exec(*@arguments, &block)
           end
         rescue Exception => exc
           @exception = exc
@@ -143,7 +147,7 @@ module ParallelMinion
       # Copy current scopes for new thread. Only applicable for AR models
       scopes = self.class.current_scopes if defined?(ActiveRecord::Base)
 
-      @thread = Thread.new(*args) do
+      @thread = Thread.new(*@arguments) do
         # Copy logging tags from parent thread
         logger.tagged(*tags) do
           # Set the current thread name to the description for this Minion
@@ -155,10 +159,10 @@ module ParallelMinion
             logger.benchmark_info("Completed #{@description}", log_exception: @log_exception, metric: @metric) do
               # Use the current scope for the duration of the task execution
               if scopes.nil? || (scopes.size == 0)
-                @result = instance_exec(*args, &block)
+                @result = instance_exec(*@arguments, &block)
               else
                 # Each Class to scope requires passing a block to .scoping
-                proc = Proc.new { instance_exec(*args, &block) }
+                proc = Proc.new { instance_exec(*@arguments, &block) }
                 first = scopes.shift
                 scopes.each {|scope| proc = Proc.new { scope.scoping(&proc) } }
                 @result = first.scoping(&proc)
