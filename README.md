@@ -1,7 +1,7 @@
 parallel_minion [![Build Status](https://secure.travis-ci.org/reidmorrison/parallel_minion.png?branch=master)](http://travis-ci.org/reidmorrison/parallel_minion)
 ===============
 
-Pragmatic approach to parallel and asynchronous processing in Ruby
+Pragmatic approach to parallel processing in Ruby
 
 ## Description
 
@@ -59,7 +59,7 @@ This project uses [Semantic Versioning](http://semver.org/).
 
 ## License
 
-Copyright 2013, 2014 Reid Morrison
+Copyright 2013, 2014, 2105 Reid Morrison
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
