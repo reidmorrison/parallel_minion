@@ -1,20 +1,14 @@
-# Allow test to be run in-place without requiring a gem install
-$LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
-
-require 'semantic_logger'
-# Register an appender if one is not already registered
-SemanticLogger.default_level = :trace
-SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter) if SemanticLogger.appenders.size == 0
+require File.join(File.dirname(__FILE__), 'test_helper')
 
 require 'rubygems'
 require 'erb'
-require 'test/unit'
+#require 'test/unit'
 # Since we want both the AR and Mongoid extensions loaded we need to require them first
 require 'active_record'
 require 'active_record/relation'
 # Should redefines Proc#bind so must include after Rails
-require 'shoulda'
-require 'parallel_minion'
+#require 'shoulda'
+#require 'parallel_minion'
 
 ActiveRecord::Base.logger = SemanticLogger[ActiveRecord]
 ActiveRecord::Base.configurations = YAML::load(ERB.new(IO.read('test/config/database.yml')).result)
@@ -31,7 +25,7 @@ end
 class Person < ActiveRecord::Base
 end
 
-class MinionScopeTest < Test::Unit::TestCase
+class MinionScopeTest < Minitest::Test
 
   context ParallelMinion::Minion do
     [false, true].each do |enabled|

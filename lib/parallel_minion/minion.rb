@@ -15,8 +15,12 @@ module ParallelMinion
     # Returns [Array<Object>] list of arguments in the order they were passed into the initializer
     attr_reader :arguments
 
+    # Returns [Float] the number of milli-seconds the the minion took to complete
+    # Returns nil if the minion is still running
+    attr_reader :duration
+
     # Give an infinite amount of time to wait for a Minion to complete a task
-    INFINITE = -1
+    INFINITE = 0
 
     # Sets whether minions are enabled to run in their own threads
     #
@@ -61,8 +65,8 @@ module ParallelMinion
     #   :timeout [Integer]
     #     Maximum amount of time in milli-seconds that the task may take to complete
     #     before #result times out
-    #     Set to Minion::INFINITE to give the thread an infinite amount of time to complete
-    #     Default: Minion::INFINITE
+    #     Set to 0 to give the thread an infinite amount of time to complete
+    #     Default: 0 ( Wait forever )
     #
     #     Notes:
     #     - :timeout does not affect what happens to the Minion running the
@@ -76,6 +80,17 @@ module ParallelMinion
     #     Whether the minion should run in a separate thread
     #     Not recommended in Production, but is useful for debugging purposes
     #     Default: ParallelMinion::Minion.enabled?
+    #
+    #   :on_timeout [Exception]
+    #     The class to raise on the minion when the minion times out.
+    #     By raising the exception on the running thread it ensures that the thread
+    #     ends due to the exception, rather than continuing to execute.
+    #     The exception is only raised on the running minion when #result is called.
+    #     The current call to #result will complete with a result of nil, future
+    #     calls to #result will raise the supplied exception on the current thread
+    #     since the thread will have terminated with that exception.
+    #
+    #     Note: :on_timeout has no effect if not #enabled?
     #
     #   *args
     #     Any number of arguments can be supplied that are passed into the block
@@ -115,12 +130,13 @@ module ParallelMinion
       @exception     = nil
       @arguments     = args.dup
       options        = self.class.extract_options!(@arguments)
-      @timeout       = (options.delete(:timeout) || Minion::INFINITE).to_f
+      @timeout       = options.delete(:timeout).to_f
       @description   = (options.delete(:description) || 'Minion').to_s
       @metric        = options.delete(:metric)
       @log_exception = options.delete(:log_exception)
       @enabled       = options.delete(:enabled)
       @enabled       = self.class.enabled? if @enabled.nil?
+      @on_timeout    = options.delete(:on_timeout)
 
       # Warn about any unknown options.
       options.each_pair do | key, val |
@@ -138,6 +154,8 @@ module ParallelMinion
           end
         rescue Exception => exc
           @exception = exc
+        ensure
+          @duration = Time.now - @start_time
         end
         return
       end
@@ -174,6 +192,7 @@ module ParallelMinion
           ensure
             # Return any database connections used by this thread back to the pool
             ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+            @duration = Time.now - @start_time
           end
         end
       end
@@ -190,6 +209,7 @@ module ParallelMinion
         ms = time_left
         logger.benchmark_info("Waited for Minion to complete: #{@description}", min_duration: 0.01) do
           if @thread.join(ms.nil? ? nil: ms / 1000).nil?
+            @thread.raise(@on_timeout.new("Minion: #{@description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for result from Minion: #{@description}")
             return
           end
@@ -219,7 +239,7 @@ module ParallelMinion
     # Returns 0 if no time is left
     # Returns nil if their is no time limit. I.e. :timeout was set to Minion::INFINITE (infinite time left)
     def time_left
-      return nil if @timeout == INFINITE
+      return nil if (@timeout == 0) || (@timeout == -1)
       duration = @timeout - (Time.now - @start_time) * 1000
       duration <= 0 ? 0 : duration
     end

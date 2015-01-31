@@ -1,17 +1,19 @@
 source 'http://rubygems.org'
 
+gemspec
+
 gem 'rake'
-gem 'semantic_logger', '~> 2.1'
+gem 'minitest'
+gem 'minitest-reporters'
+gem 'minitest-stub_any_instance'
+gem 'shoulda-context'
 
-group :test do
-  gem 'minitest', '~> 3.0'
-  gem 'shoulda', '~> 2.0'
-  gem 'activerecord'
-  gem 'mocha'
-  gem 'sqlite3', platform: :ruby
+gem 'activerecord'
+gem 'sqlite3', platform: :ruby
 
-  platforms :jruby do
-    gem 'jdbc-sqlite3'
-    gem 'activerecord-jdbcsqlite3-adapter'
-  end
+platforms :jruby do
+  gem 'jdbc-sqlite3'
+  gem 'activerecord-jdbcsqlite3-adapter'
 end
+
+gem 'awesome_print'

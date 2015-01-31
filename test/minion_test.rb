@@ -1,22 +1,8 @@
-# Allow test to be run in-place without requiring a gem install
-$LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
-
-require 'test/unit'
-require 'shoulda'
-require 'parallel_minion'
-
-# Register an appender if one is not already registered
-SemanticLogger.default_level = :trace
-SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter) if SemanticLogger.appenders.size == 0
-
-# Setup global callback for metric so that it can be tested below
-SemanticLogger.on_metric do |log_struct|
-  $log_struct = log_struct.dup
-end
+require File.join(File.dirname(__FILE__), 'test_helper')
 
 # Test ParallelMinion standalone without Rails
 # Run this test standalone to verify it has no Rails dependencies
-class MinionTest < Test::Unit::TestCase
+class MinionTest < Minitest::Test
   include SemanticLogger::Loggable
 
   context ParallelMinion::Minion do
@@ -48,7 +34,7 @@ class MinionTest < Test::Unit::TestCase
 
         should 'raise exception' do
           minion = ParallelMinion::Minion.new(description: 'Test') { raise "An exception" }
-          assert_raise RuntimeError do
+          assert_raises RuntimeError do
             minion.result
           end
         end
@@ -58,7 +44,7 @@ class MinionTest < Test::Unit::TestCase
         #        should 'not have access to local variables' do
         #          name = 'Jack'
         #          minion = ParallelMinion::Minion.new(description: 'Test') { puts name }
-        #          assert_raise NameError do
+        #          assert_raises NameError do
         #            minion.result
         #          end
         #        end
@@ -118,9 +104,22 @@ class MinionTest < Test::Unit::TestCase
 
         should 'timeout' do
           minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) { sleep 1 }
-          # Only Parallel Minions time-out when they exceed the timeout
           if enabled
             assert_equal nil, minion.result
+          end
+        end
+
+        should 'timeout and terminate thread with Exception' do
+          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
+          if enabled
+            assert_equal nil, minion.result
+            # Give time for thread to terminate
+            sleep 0.1
+            assert_equal Timeout::Error, minion.exception.class
+            assert_equal false, minion.working?
+            assert_equal true,  minion.completed?
+            assert_equal true,  minion.failed?
+            assert_equal 0,     minion.time_left
           end
         end
 
