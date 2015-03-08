@@ -23,7 +23,7 @@ module ParallelMinion
 
     # Returns [Fixnum] current number of minions in the pool
     def count
-      @pool.length
+      pool.length
     end
 
     # Parameters
@@ -39,7 +39,7 @@ module ParallelMinion
         lifeguard
         worker(&block)
       else
-        @pool << ParallelMinion::Minion.new(@options) do
+        pool << ParallelMinion::Minion.new(@options) do
           yield
         end
       end
@@ -56,7 +56,7 @@ module ParallelMinion
 
     # Remove from the front of the queue. First in first out.
     def lifeguard
-      @pool.shift.result if count > 0
+      pool.shift.result if count > 0
     end
   end
 end
