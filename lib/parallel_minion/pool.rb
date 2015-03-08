@@ -13,7 +13,7 @@ module ParallelMinion
     # NOTE:
     #     PLease see parameters for ParallelMinion::Minion#initalize
     #     They should be passed to the ParallelMinion::Pool#initalize
-    #     Each minion in the pool will reeive these options.
+    #     Each minion in the pool will receive these options.
     def initialize(*args)
       @options = ParallelMinion::Minion.extract_options!(args)
       @maximum = @options.delete(:maximum)
@@ -50,9 +50,7 @@ module ParallelMinion
     # Drain the pool
     def drain
       result = []
-      while count > 0
-        result << lifeguard
-      end
+      result << lifeguard while count > 0
       result
     end
 
