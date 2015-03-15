@@ -5,3 +5,4 @@ nbproject/*
 test.rb
 *.sqlite3
 Gemfile.lock
+test.log
