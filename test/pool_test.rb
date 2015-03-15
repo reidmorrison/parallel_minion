@@ -63,6 +63,13 @@ class PoolTest < Minitest::Test
         # Pool should be empty
         assert_equal 0, @pool.count
       end
+
+      should 'pass arguments into the minion in the pool' do
+        # Pass 1 to the pool and increment it in the minion
+        pool = ParallelMinion::Pool.new(1, maximum: 2)
+        pool.worker { |x| x + 1 }
+        assert_equal 2, pool.lifeguard
+      end
     end
 
     context '#lifeguard' do

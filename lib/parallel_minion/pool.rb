@@ -18,8 +18,9 @@ module ParallelMinion
     #     They should be passed to the ParallelMinion::Pool#initalize
     #     Each minion in the pool will receive these options.
     def initialize(*args)
-      @options = ParallelMinion::Minion.extract_options!(args)
-      @maximum = @options.delete(:maximum)
+      @arguments = args.dup
+      options    = ParallelMinion::Minion.extract_options!(@arguments)
+      @maximum   = options.delete(:maximum)
       fail 'Missing required maximum minions' if @maximum.nil?
       @pool    = Queue.new
       @results = []
@@ -43,8 +44,8 @@ module ParallelMinion
         lifeguard
         worker(&block)
       else
-        pool << ParallelMinion::Minion.new(@options) do
-          yield
+        pool << ParallelMinion::Minion.new(*@arguments) do |*args|
+          yield(*args)
         end
       end
     end
