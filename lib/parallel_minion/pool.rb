@@ -44,9 +44,7 @@ module ParallelMinion
         lifeguard
         worker(&block)
       else
-        pool << ParallelMinion::Minion.new(*@arguments) do |*args|
-          yield(*args)
-        end
+        pool << ParallelMinion::Minion.new(*@arguments, &block)
       end
     end
 
