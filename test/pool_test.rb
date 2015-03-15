@@ -77,18 +77,23 @@ class PoolTest < Minitest::Test
         @pool.worker { 2 }
         assert_equal 1, @pool.lifeguard
       end
+
+      should 'add minion result into results' do
+        @pool.worker { 1 }
+        @pool.lifeguard
+        assert_equal 1, @pool.results.first
+      end
     end
 
     context '#drain' do
       setup { @pool = ParallelMinion::Pool.new(maximum: 2) }
 
-      should 'return each result for every minion in the pool in an array and empty the pool' do
+      should 'drain into the results' do
         @pool.worker { 1 }
         @pool.worker { 2 }
-        result = @pool.drain
-        assert result.is_a?(Array)
-        assert_includes result, 1
-        assert_includes result, 2
+        @pool.drain
+        assert_includes @pool.results, 1
+        assert_includes @pool.results, 2
         assert_equal 0, @pool.count
       end
     end

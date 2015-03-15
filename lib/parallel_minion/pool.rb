@@ -7,6 +7,9 @@ module ParallelMinion
     # Returns [Array<Object>] list of Minions
     attr_reader :pool
 
+    # Returns [Array<Object>] results from each Minion
+    attr_reader :results
+
     # Parameters
     #   :maximum [Fixnum]
     #     The maximum number of minions your pool can hold
@@ -19,6 +22,7 @@ module ParallelMinion
       @maximum = @options.delete(:maximum)
       fail 'Missing required maximum minions' if @maximum.nil?
       @pool    = Queue.new
+      @results = []
     end
 
     # Returns [Fixnum] current number of minions in the pool
@@ -47,16 +51,16 @@ module ParallelMinion
 
     # Returns the results from the pool
     # Wait for all threads in the pool to return a result
-    # Drain the pool
+    # Drain the pool into the results
     def drain
-      result = []
-      result << lifeguard while count > 0
-      result
+      results << lifeguard while count > 0
     end
 
     # Remove from the front of the queue. First in first out.
+    # Append the minions result into results.
+    # Return the minions result
     def lifeguard
-      pool.shift.result if count > 0
+      (results << pool.shift.result).last if count > 0
     end
   end
 end
