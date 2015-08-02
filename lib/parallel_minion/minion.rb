@@ -125,7 +125,7 @@ module ParallelMinion
     #     MyTable.where('created_at <= ?', date).count
     #   end
     def initialize(*args, &block)
-      raise "Missing mandatory block that Minion must perform" unless block
+      raise 'Missing mandatory block that Minion must perform' unless block
       @start_time    = Time.now
       @exception     = nil
       @arguments     = args.dup
@@ -139,7 +139,7 @@ module ParallelMinion
       @on_timeout    = options.delete(:on_timeout)
 
       # Warn about any unknown options.
-      options.each_pair do | key, val |
+      options.each_pair do |key, val|
         logger.warn "Ignoring unknown option: #{key.inspect} => #{val.inspect}"
         warn "ParallelMinion::Minion Ignoring unknown option: #{key.inspect} => #{val.inspect}"
       end
@@ -160,7 +160,7 @@ module ParallelMinion
         return
       end
 
-      tags = (logger.tags || []).dup
+      tags   = (logger.tags || []).dup
 
       # Copy current scopes for new thread. Only applicable for AR models
       scopes = self.class.current_scopes if defined?(ActiveRecord::Base)
@@ -180,9 +180,9 @@ module ParallelMinion
                 @result = instance_exec(*@arguments, &block)
               else
                 # Each Class to scope requires passing a block to .scoping
-                proc = Proc.new { instance_exec(*@arguments, &block) }
+                proc  = Proc.new { instance_exec(*@arguments, &block) }
                 first = scopes.shift
-                scopes.each {|scope| proc = Proc.new { scope.scoping(&proc) } }
+                scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
                 @result = first.scoping(&proc)
               end
             end
@@ -208,7 +208,7 @@ module ParallelMinion
       if working?
         ms = time_left
         logger.benchmark_info("Waited for Minion to complete: #{@description}", min_duration: 0.01) do
-          if @thread.join(ms.nil? ? nil: ms / 1000).nil?
+          if @thread.join(ms.nil? ? nil : ms / 1000).nil?
             @thread.raise(@on_timeout.new("Minion: #{@description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for result from Minion: #{@description}")
             return
@@ -252,20 +252,20 @@ module ParallelMinion
     # Returns the current scopes for each of the models for which scopes will be
     # copied to the Minions
     if defined?(ActiveRecord)
-      if  ActiveRecord::VERSION::MAJOR >= 4
+      if ActiveRecord::VERSION::MAJOR >= 4
         def self.current_scopes
-          @@scoped_classes.collect {|klass| klass.all}
+          @@scoped_classes.collect { |klass| klass.all }
         end
       else
         def self.current_scopes
-          @@scoped_classes.collect {|klass| klass.scoped}
+          @@scoped_classes.collect { |klass| klass.scoped }
         end
       end
     end
 
     protected
 
-    @@enabled = true
+    @@enabled        = true
     @@scoped_classes = []
 
     # Extract options from a hash.

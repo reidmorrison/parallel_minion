@@ -11,11 +11,11 @@ Gem::Specification.new do |spec|
   spec.authors     = ['Reid Morrison']
   spec.email       = ['reidmo@gmail.com']
   spec.homepage    = 'https://github.com/reidmorrison/parallel_minion'
-  spec.summary     = "Pragmatic approach to parallel and asynchronous processing in Ruby"
-  spec.description = "Parallel Minion allows you to take existing blocks of code and wrap them in a minion so that they can run asynchronously in a separate thread"
-  spec.files       = Dir["lib/**/*", "LICENSE.txt", "Rakefile", "README.md"]
+  spec.summary     = 'Pragmatic approach to parallel and asynchronous processing in Ruby'
+  spec.description = 'Parallel Minion allows you to take existing blocks of code and wrap them in a minion so that they can run asynchronously in a separate thread'
+  spec.files       = Dir["lib/**/*", 'LICENSE.txt', 'Rakefile', 'README.md']
   spec.test_files  = Dir["test/**/*"]
-  spec.license     = "Apache License V2.0"
+  spec.license     = 'Apache License V2.0'
   spec.has_rdoc    = true
   spec.add_dependency 'semantic_logger'
 end

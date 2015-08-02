@@ -74,7 +74,7 @@ class MinionTest < Minitest::Test
         end
 
         should 'include metric' do
-          metric_name = '/Custom/metric'
+          metric_name = 'model/method'
           hash = { value: 23 }
           value = 47
           minion = ParallelMinion::Minion.new(hash, description: 'Test', metric: metric_name) do |h|
