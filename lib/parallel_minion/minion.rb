@@ -33,12 +33,13 @@ module ParallelMinion
     #
     # Note: Not recommended to set this setting to false in Production
     def self.enabled=(enabled)
-      @@enabled = enabled
+      logger.name = enabled ? 'Minion' : 'Inline'
+      @enabled    = enabled
     end
 
     # Returns whether minions are enabled to run in their own threads
     def self.enabled?
-      @@enabled
+      @enabled
     end
 
     # The list of classes for which the current scope must be copied into the
@@ -47,8 +48,48 @@ module ParallelMinion
     # Example:
     #   ...
     def self.scoped_classes
-      @@scoped_classes
+      @scoped_classes
     end
+
+    def self.scoped_classes=(scoped_classes)
+      @scoped_classes = scoped_classes.dup
+    end
+
+    # Change the log level for the Started log message.
+    #
+    # Default: :info
+    #
+    # Valid levels:
+    #   :trace, :debug, :info, :warn, :error, :fatal
+    def self.started_log_level=(level)
+      raise(ArgumentError, "Invalid log level: #{level}") unless SemanticLogger::LEVELS.include?(level)
+      @started_log_level = level
+    end
+
+    def self.started_log_level
+      @started_log_level
+    end
+
+    # Change the log level for the Completed log message.
+    #
+    # Default: :info
+    #
+    # Valid levels:
+    #   :trace, :debug, :info, :warn, :error, :fatal
+    def self.completed_log_level=(level)
+      raise(ArgumentError, "Invalid log level: #{level}") unless SemanticLogger::LEVELS.include?(level)
+      @completed_log_level = level
+    end
+
+    def self.completed_log_level
+      @completed_log_level
+    end
+
+    self.started_log_level   = :info
+    self.completed_log_level = :info
+    self.enabled             = true
+    self.scoped_classes      = []
+    logger.name              = 'Minion'
 
     # Create a new thread and
     #   Log the time for the thread to complete processing
@@ -124,78 +165,19 @@ module ParallelMinion
     #   ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in parallel', timeout: 1000) do |date|
     #     MyTable.where('created_at <= ?', date).count
     #   end
-    def initialize(*args, &block)
+    def initialize(*arguments, description: 'Minion', metric: nil, log_exception: nil, enabled: self.class.enabled?, timeout: INFINITE, on_timeout: nil, &block)
       raise 'Missing mandatory block that Minion must perform' unless block
       @start_time    = Time.now
       @exception     = nil
-      @arguments     = args.dup
-      options        = self.class.extract_options!(@arguments)
-      @timeout       = options.delete(:timeout).to_f
-      @description   = (options.delete(:description) || 'Minion').to_s
-      @metric        = options.delete(:metric)
-      @log_exception = options.delete(:log_exception)
-      @enabled       = options.delete(:enabled)
-      @enabled       = self.class.enabled? if @enabled.nil?
-      @on_timeout    = options.delete(:on_timeout)
+      @arguments     = arguments
+      @timeout       = timeout.to_f
+      @description   = description.to_s
+      @metric        = metric
+      @log_exception = log_exception
+      @enabled       = enabled
+      @on_timeout    = on_timeout
 
-      # Warn about any unknown options.
-      options.each_pair do |key, val|
-        logger.warn "Ignoring unknown option: #{key.inspect} => #{val.inspect}"
-        warn "ParallelMinion::Minion Ignoring unknown option: #{key.inspect} => #{val.inspect}"
-      end
-
-      # Run the supplied block of code in the current thread for testing or
-      # debugging purposes
-      if @enabled == false
-        begin
-          logger.info("Started in the current thread: #{@description}")
-          logger.benchmark_info("Completed in the current thread: #{@description}", log_exception: @log_exception, metric: @metric) do
-            @result = instance_exec(*@arguments, &block)
-          end
-        rescue Exception => exc
-          @exception = exc
-        ensure
-          @duration = Time.now - @start_time
-        end
-        return
-      end
-
-      tags   = (logger.tags || []).dup
-
-      # Copy current scopes for new thread. Only applicable for AR models
-      scopes = self.class.current_scopes if defined?(ActiveRecord::Base)
-
-      @thread = Thread.new(*@arguments) do
-        # Copy logging tags from parent thread
-        logger.tagged(*tags) do
-          # Set the current thread name to the description for this Minion
-          # so that all log entries in this thread use this thread name
-          Thread.current.name = "#{@description}-#{Thread.current.object_id}"
-          logger.info("Started #{@description}")
-
-          begin
-            logger.benchmark_info("Completed #{@description}", log_exception: @log_exception, metric: @metric) do
-              # Use the current scope for the duration of the task execution
-              if scopes.nil? || (scopes.size == 0)
-                @result = instance_exec(*@arguments, &block)
-              else
-                # Each Class to scope requires passing a block to .scoping
-                proc  = Proc.new { instance_exec(*@arguments, &block) }
-                first = scopes.shift
-                scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
-                @result = first.scoping(&proc)
-              end
-            end
-          rescue Exception => exc
-            @exception = exc
-            nil
-          ensure
-            # Return any database connections used by this thread back to the pool
-            ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
-            @duration = Time.now - @start_time
-          end
-        end
-      end
+      @enabled ? run(&block) : run_inline(&block)
     end
 
     # Returns the result when the thread completes
@@ -207,7 +189,7 @@ module ParallelMinion
       # Return nil if Minion is still working and has time left to finish
       if working?
         ms = time_left
-        logger.benchmark_info("Waited for Minion to complete: #{@description}", min_duration: 0.01) do
+        logger.measure(self.class.started_log_level, "Waited for Minion to complete: #{@description}", min_duration: 0.01) do
           if @thread.join(ms.nil? ? nil : ms / 1000).nil?
             @thread.raise(@on_timeout.new("Minion: #{@description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for result from Minion: #{@description}")
@@ -254,23 +236,73 @@ module ParallelMinion
     if defined?(ActiveRecord)
       if ActiveRecord::VERSION::MAJOR >= 4
         def self.current_scopes
-          @@scoped_classes.collect { |klass| klass.all }
+          @scoped_classes.collect { |klass| klass.all }
         end
       else
         def self.current_scopes
-          @@scoped_classes.collect { |klass| klass.scoped }
+          @scoped_classes.collect { |klass| klass.scoped }
         end
       end
     end
 
-    protected
+    private
 
-    @@enabled        = true
-    @@scoped_classes = []
+    # Run the supplied block of code in the current thread.
+    # Useful for debugging, testing, and when running in batch environments.
+    def run_inline(&block)
+      begin
+        logger.public_send(self.class.started_log_level, "Started #{@description}")
+        logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: @metric) do
+          @result = instance_exec(*@arguments, &block)
+        end
+      rescue Exception => exc
+        @exception = exc
+      ensure
+        @duration = Time.now - @start_time
+      end
+    end
 
-    # Extract options from a hash.
-    def self.extract_options!(args)
-      args.last.is_a?(Hash) ? args.pop : {}
+    def run(&block)
+      tags       = (SemanticLogger.tags || []).dup
+      named_tags = (SemanticLogger.named_tags || {}).dup
+
+      # Copy current scopes for new thread. Only applicable for AR models
+      scopes     = self.class.current_scopes if defined?(ActiveRecord::Base)
+
+      @thread = Thread.new(*@arguments) do
+        Thread.current.name = "#{@description}-#{Thread.current.object_id}"
+
+        # Copy logging tags from parent thread
+        SemanticLogger.tagged(*tags) do
+          SemanticLogger.named_tagged(named_tags) do
+            # Set the current thread name to the description for this Minion
+            # so that all log entries in this thread use this thread name
+            logger.public_send(self.class.started_log_level, "Started #{@description}")
+
+            begin
+              logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: @metric) do
+                # Use the current scope for the duration of the task execution
+                if scopes.nil? || (scopes.size == 0)
+                  @result = instance_exec(*@arguments, &block)
+                else
+                  # Each Class to scope requires passing a block to .scoping
+                  proc  = Proc.new { instance_exec(*@arguments, &block) }
+                  first = scopes.shift
+                  scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
+                  @result = first.scoping(&proc)
+                end
+              end
+            rescue Exception => exc
+              @exception = exc
+              nil
+            ensure
+              # Return any database connections used by this thread back to the pool
+              ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+              @duration = Time.now - @start_time
+            end
+          end
+        end
+      end
     end
 
   end
