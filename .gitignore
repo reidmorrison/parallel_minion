@@ -6,3 +6,5 @@ test.rb
 Gemfile.lock
 
 *.log
+
+*.lock

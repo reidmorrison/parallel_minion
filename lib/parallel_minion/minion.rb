@@ -263,10 +263,11 @@ module ParallelMinion
     end
 
     def run(&block)
+      # Capture tags from current thread
       tags       = (SemanticLogger.tags || []).dup
       named_tags = (SemanticLogger.named_tags || {}).dup
 
-      # Copy current scopes for new thread. Only applicable for AR models
+      # Captures scopes from current thread. Only applicable for AR models
       scopes     = self.class.current_scopes if defined?(ActiveRecord::Base)
 
       @thread = Thread.new(*@arguments) do
@@ -281,16 +282,7 @@ module ParallelMinion
 
             begin
               logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: @metric) do
-                # Use the current scope for the duration of the task execution
-                if scopes.nil? || (scopes.size == 0)
-                  @result = instance_exec(*@arguments, &block)
-                else
-                  # Each Class to scope requires passing a block to .scoping
-                  proc  = Proc.new { instance_exec(*@arguments, &block) }
-                  first = scopes.shift
-                  scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
-                  @result = first.scoping(&proc)
-                end
+                run_in_scope(scopes, &block)
               end
             rescue Exception => exc
               @exception = exc
@@ -302,6 +294,19 @@ module ParallelMinion
             end
           end
         end
+      end
+    end
+
+    def run_in_scope(scopes, &block)
+      if scopes.nil? || scopes.empty?
+        @result = instance_exec(*@arguments, &block)
+      else
+        # Use the captured scope when running the block.
+        # Each Class to scope requires passing a block to .scoping.
+        proc  = Proc.new { instance_exec(*@arguments, &block) }
+        first = scopes.shift
+        scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
+        @result = first.scoping(&proc)
       end
     end
 
