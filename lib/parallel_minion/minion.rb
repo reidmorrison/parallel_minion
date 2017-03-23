@@ -264,8 +264,11 @@ module ParallelMinion
 
     def run(&block)
       # Capture tags from current thread
-      tags       = (SemanticLogger.tags || []).dup
-      named_tags = (SemanticLogger.named_tags || {}).dup
+      tags = SemanticLogger.tags
+      tags = tags.nil? || tags.empty? ? nil : tags.dup
+
+      named_tags = SemanticLogger.named_tags
+      named_tags = named_tags.nil? || named_tags.empty? ? nil : named_tags.dup
 
       # Captures scopes from current thread. Only applicable for AR models
       scopes     = self.class.current_scopes if defined?(ActiveRecord::Base)
@@ -273,26 +276,21 @@ module ParallelMinion
       @thread = Thread.new(*@arguments) do
         Thread.current.name = "#{@description}-#{Thread.current.object_id}"
 
-        # Copy logging tags from parent thread
-        SemanticLogger.tagged(*tags) do
-          SemanticLogger.named_tagged(named_tags) do
-            # Set the current thread name to the description for this Minion
-            # so that all log entries in this thread use this thread name
-            logger.public_send(self.class.started_log_level, "Started #{@description}")
+        # Copy logging tags from parent thread, if any
+        proc                = Proc.new { run_in_scope(scopes, &block) }
+        proc2               = tags ? Proc.new { SemanticLogger.tagged(*tags, &proc) } : proc
+        proc3               = named_tags ? Proc.new { SemanticLogger.named_tagged(named_tags, &proc2) } : proc2
 
-            begin
-              logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: @metric) do
-                run_in_scope(scopes, &block)
-              end
-            rescue Exception => exc
-              @exception = exc
-              nil
-            ensure
-              # Return any database connections used by this thread back to the pool
-              ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
-              @duration = Time.now - @start_time
-            end
-          end
+        logger.public_send(self.class.started_log_level, "Started #{@description}")
+        begin
+          logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: @metric, &proc3)
+        rescue Exception => exc
+          @exception = exc
+          nil
+        ensure
+          @duration = Time.now - @start_time
+          # Return any database connections used by this thread back to the pool
+          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
         end
       end
     end
