@@ -15,9 +15,11 @@ existing code to use minions.
 ## Example
 
 ```ruby
-minion = ParallelMinion::Minion.new(10.days.ago,
-            description: 'Doing something else in parallel',
-            timeout: 1000) do |date|
+minion = ParallelMinion::Minion.new(
+  10.days.ago,
+  description: 'Doing something else in parallel',
+  timeout:     1000
+) do |date|
   MyTable.where('created_at <= ?', date).count
 end
 
@@ -59,7 +61,7 @@ This project uses [Semantic Versioning](http://semver.org/).
 
 ## License
 
-Copyright 2013, 2014, 2105 Reid Morrison
+Copyright 2013, 2014, 2015, 2016, 2017 Reid Morrison
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

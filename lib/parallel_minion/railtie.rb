@@ -11,6 +11,14 @@ module ParallelMinion #:nodoc:
     #     # Run Minions in the current thread to make debugging easier
     #     config.parallel_minion.enabled = false
     #
+    #     # Change the log level for the started log messages to :debug,
+    #     # so that they do not show up in production when log level is :info.
+    #     config.parallel_minion.started_log_level = :debug
+    #
+    #     # Change the log level for the completed log messages to :debug,
+    #     # so that they do not show up in production when log level is :info.
+    #     config.parallel_minion.completed_log_level = :debug
+    #
     #     # Add a model so that its current scope is copied to the Minion
     #     config.after_initialize do
     #       # Perform in an after_initialize so that the model has been loaded

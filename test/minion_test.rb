@@ -8,10 +8,10 @@ class MinionTest < Minitest::Test
   describe ParallelMinion::Minion do
 
     [false, true].each do |enabled|
-      describe ".new with enabled: #{enabled.inspect}" do
+      describe enabled ? 'enabled' : 'disabled' do
         before do
           ParallelMinion::Minion.enabled = enabled
-          $log_struct = nil
+          $log_structs                   = []
         end
 
         it 'without parameters' do
@@ -25,7 +25,7 @@ class MinionTest < Minitest::Test
         end
 
         it 'with an argument' do
-          p1 = { name: 198 }
+          p1     = {name: 198}
           minion = ParallelMinion::Minion.new(p1, description: 'Test') do |v|
             v[:name]
           end
@@ -39,6 +39,12 @@ class MinionTest < Minitest::Test
           end
         end
 
+        it 'has correct logger name' do
+          minion = ParallelMinion::Minion.new { 196 }
+          name   = enabled ? 'Minion' : 'Inline'
+          assert_equal name, minion.logger.name
+        end
+
         # TODO Blocks still have access to their original scope if variables cannot be
         #      resolved first by the parameters, then by the values in Minion itself
         #        it 'not have access to local variables' do
@@ -50,10 +56,10 @@ class MinionTest < Minitest::Test
         #        end
 
         it 'run minion' do
-          hash = { value: 23 }
-          value = 47
+          hash   = {value: 23}
+          value  = 47
           minion = ParallelMinion::Minion.new(hash, description: 'Test') do |h|
-            value = 321
+            value     = 321
             h[:value] = 123
             456
           end
@@ -75,25 +81,36 @@ class MinionTest < Minitest::Test
 
         it 'include metric' do
           metric_name = 'model/method'
-          hash = { value: 23 }
-          value = 47
-          minion = ParallelMinion::Minion.new(hash, description: 'Test', metric: metric_name) do |h|
-            value = 321
+          hash        = {value: 23}
+          value       = 47
+          minion      = ParallelMinion::Minion.new(hash, description: 'Test', metric: metric_name) do |h|
+            value     = 321
             h[:value] = 123
+            sleep 1
             456
           end
           assert_equal 456, minion.result
           assert_equal 123, hash[:value]
           assert_equal 321, value
           SemanticLogger.flush
-          assert_equal metric_name, $log_struct.metric
+          assert log = $log_structs.first, -> { $log_structs.ai }
+          if enabled
+            # Completed log message
+            assert_equal metric_name, log.metric, -> { $log_structs.ai }
+            # Wait log message
+            assert log = $log_structs.last, -> { $log_structs.ai }
+            assert_equal "#{metric_name}/wait", log.metric, -> { $log_structs.ai }
+          else
+            # Timeout and wait has no effect when run inline
+            assert_equal metric_name, log.metric, -> { $log_structs.ai }
+          end
         end
 
         it 'handle multiple minions concurrently' do
           # Start 10 minions
           minions = 10.times.collect do |i|
             # Each Minion returns its index in the collection
-            ParallelMinion::Minion.new(i, description: "Minion:#{i}") {|counter| counter }
+            ParallelMinion::Minion.new(i, description: "Minion:#{i}") { |counter| counter }
           end
           assert_equal 10, minions.count
           # Fetch the result from each Minion
@@ -103,23 +120,23 @@ class MinionTest < Minitest::Test
         end
 
         it 'timeout' do
-          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) { sleep 1 }
           if enabled
+            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) { sleep 1 }
             assert_nil minion.result
           end
         end
 
         it 'timeout and terminate thread with Exception' do
-          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
           if enabled
+            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
             assert_nil minion.result
             # Give time for thread to terminate
             sleep 0.1
             assert_equal Timeout::Error, minion.exception.class
             assert_equal false, minion.working?
-            assert_equal true,  minion.completed?
-            assert_equal true,  minion.failed?
-            assert_equal 0,     minion.time_left
+            assert_equal true, minion.completed?
+            assert_equal true, minion.failed?
+            assert_equal 0, minion.time_left
           end
         end
 
@@ -131,7 +148,7 @@ class MinionTest < Minitest::Test
         end
 
         it 'make timeout instance variable available' do
-          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 1000 ) do
+          minion = ParallelMinion::Minion.new(description: 'Test', timeout: 1000) do
             timeout
           end
           assert_equal 1000, minion.result
@@ -145,11 +162,11 @@ class MinionTest < Minitest::Test
         end
 
         it 'keep the original arguments' do
-          minion = ParallelMinion::Minion.new(1, 'data', 14.1, description: 'Test') do | num, str, float |
+          minion = ParallelMinion::Minion.new(1, 'data', 14.1, description: 'Test') do |num, str, float|
             num + float
           end
           assert_equal 15.1, minion.result
-          assert_equal [ 1, 'data', 14.1 ], minion.arguments
+          assert_equal [1, 'data', 14.1], minion.arguments
         end
       end
 
