@@ -8,3 +8,4 @@ Gemfile.lock
 *.log
 
 *.lock
+/docs/_site
