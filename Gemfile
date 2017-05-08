@@ -11,3 +11,4 @@ gem 'activerecord-jdbcsqlite3-adapter', platform: :jruby
 
 gem 'awesome_print'
 gem 'appraisal'
+gem 'semantic_logger', path: '../semantic_logger'
