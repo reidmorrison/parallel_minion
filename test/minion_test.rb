@@ -15,12 +15,12 @@ class MinionTest < Minitest::Test
         end
 
         it 'without parameters' do
-          minion = ParallelMinion::Minion.new {196}
+          minion = ParallelMinion::Minion.new { 196 }
           assert_equal 196, minion.result
         end
 
         it 'with a description' do
-          minion = ParallelMinion::Minion.new(description: 'Test') {197}
+          minion = ParallelMinion::Minion.new(description: 'Test') { 197 }
           assert_equal 197, minion.result
         end
 
@@ -33,14 +33,14 @@ class MinionTest < Minitest::Test
         end
 
         it 'raise exception' do
-          minion = ParallelMinion::Minion.new(description: 'Test') {raise "An exception"}
+          minion = ParallelMinion::Minion.new(description: 'Test') { raise "An exception" }
           assert_raises RuntimeError do
             minion.result
           end
         end
 
         it 'has correct logger name' do
-          minion = ParallelMinion::Minion.new {196}
+          minion = ParallelMinion::Minion.new { 196 }
           name   = enabled ? 'Minion' : 'Inline'
           assert_equal name, minion.logger.name
         end
@@ -123,16 +123,16 @@ class MinionTest < Minitest::Test
           assert_equal 123, hash[:value]
           assert_equal 321, value
           SemanticLogger.flush
-          assert log = $log_structs.first, -> {$log_structs.ai}
+          assert log = $log_structs.first, -> { $log_structs.ai }
           if enabled
             # Completed log message
-            assert_equal metric_name, log.metric, -> {$log_structs.ai}
+            assert_equal metric_name, log.metric, -> { $log_structs.ai }
             # Wait log message
-            assert log = $log_structs.last, -> {$log_structs.ai}
-            assert_equal "#{metric_name}/wait", log.metric, -> {$log_structs.ai}
+            assert log = $log_structs.last, -> { $log_structs.ai }
+            assert_equal "#{metric_name}/wait", log.metric, -> { $log_structs.ai }
           else
             # Timeout and wait has no effect when run inline
-            assert_equal metric_name, log.metric, -> {$log_structs.ai}
+            assert_equal metric_name, log.metric, -> { $log_structs.ai }
           end
         end
 
@@ -140,7 +140,7 @@ class MinionTest < Minitest::Test
           # Start 10 minions
           minions = 10.times.collect do |i|
             # Each Minion returns its index in the collection
-            ParallelMinion::Minion.new(i, description: "Minion:#{i}") {|counter| counter}
+            ParallelMinion::Minion.new(i, description: "Minion:#{i}") { |counter| counter }
           end
           assert_equal 10, minions.count
           # Fetch the result from each Minion
@@ -151,14 +151,14 @@ class MinionTest < Minitest::Test
 
         it 'timeout' do
           if enabled
-            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) {sleep 1}
+            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100) { sleep 1 }
             assert_nil minion.result
           end
         end
 
         it 'timeout and terminate thread with Exception' do
           if enabled
-            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100, on_timeout: Timeout::Error) {sleep 1}
+            minion = ParallelMinion::Minion.new(description: 'Test', timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
             assert_nil minion.result
             # Give time for thread to terminate
             sleep 0.1
