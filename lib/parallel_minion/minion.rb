@@ -313,20 +313,21 @@ module ParallelMinion
         Thread.current.name = "#{description}-#{Thread.current.object_id}"
 
         # Copy logging tags from parent thread, if any
-        proc                = Proc.new { run_in_scope(scopes, &block) }
-        proc2               = tags ? Proc.new { SemanticLogger.tagged(*tags, &proc) } : proc
-        proc3               = named_tags ? Proc.new { SemanticLogger.named_tagged(named_tags, &proc2) } : proc2
-
-        logger.public_send(self.class.started_log_level, "Started #{description}")
-        begin
-          logger.measure(self.class.completed_log_level, "Completed #{description}", log_exception: log_exception, metric: metric, &proc3)
-        rescue Exception => exc
-          @exception = exc
-          nil
-        ensure
-          @duration = Time.now - start_time
-          # Return any database connections used by this thread back to the pool
-          ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+        SemanticLogger.tagged(*tags) do
+          SemanticLogger.named_tagged(named_tags) do
+            logger.public_send(self.class.started_log_level, "Started #{description}")
+            begin
+              proc = Proc.new { run_in_scope(scopes, &block) }
+              logger.measure(self.class.completed_log_level, "Completed #{description}", log_exception: log_exception, metric: metric, &proc)
+            rescue Exception => exc
+              @exception = exc
+              nil
+            ensure
+              @duration = Time.now - start_time
+              # Return any database connections used by this thread back to the pool
+              ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+            end
+          end
         end
       end
     end

@@ -1,4 +1,4 @@
-require_relative './test_helper'
+require_relative 'test_helper'
 require 'erb'
 require 'active_record'
 

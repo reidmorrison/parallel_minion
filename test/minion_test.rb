@@ -11,7 +11,7 @@ class MinionTest < Minitest::Test
       describe enabled ? 'enabled' : 'disabled' do
         before do
           ParallelMinion::Minion.enabled = enabled
-          $log_structs                   = []
+          $log_structs.clear
         end
 
         it 'without parameters' do
@@ -92,7 +92,7 @@ class MinionTest < Minitest::Test
           assert_equal({tag: 'TAG'}, minion.result)
         end
 
-        it 'copy across tags & named tags' do
+        it 'copy across tags and named tags' do
           minion = nil
           SemanticLogger.tagged('TAG') do
             SemanticLogger.named_tagged(tag: 'TAG') do
@@ -102,11 +102,12 @@ class MinionTest < Minitest::Test
                 logger.info "Tags Test"
                 [SemanticLogger.named_tags, SemanticLogger.tags.last]
               end
+
+              assert_equal({tag: 'TAG'}, minion.result.first)
+              assert_equal 'TAG', minion.result.last
             end
           end
 
-          assert_equal({tag: 'TAG'}, minion.result.first)
-          assert_equal 'TAG', minion.result.last
         end
 
         it 'include metric' do
