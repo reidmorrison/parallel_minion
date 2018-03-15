@@ -6,12 +6,35 @@ class MinionTest < Minitest::Test
   include SemanticLogger::Loggable
 
   describe ParallelMinion::Minion do
+    class InMemoryAppender < SemanticLogger::Subscriber
+      attr_reader :messages
+
+      def initialize
+        @messages = []
+        self.name = 'Minion'
+      end
+
+      def log(log)
+        self.messages << log.dup
+      end
+    end
+
+    let :log_messages do
+      appender.messages
+    end
+
+    let :appender do
+      InMemoryAppender.new
+    end
+
+    before do
+      ParallelMinion::Minion.logger = appender
+    end
 
     [false, true].each do |enabled|
       describe enabled ? 'enabled' : 'disabled' do
         before do
           ParallelMinion::Minion.enabled = enabled
-          $log_structs.clear
         end
 
         it 'without parameters' do
@@ -123,18 +146,40 @@ class MinionTest < Minitest::Test
           assert_equal 456, minion.result
           assert_equal 123, hash[:value]
           assert_equal 321, value
-          SemanticLogger.flush
-          assert log = $log_structs.first, -> { $log_structs.ai }
+
+          assert started_log = log_messages.shift, -> { log_messages.ai }
+          assert completed_log = log_messages.shift, -> { log_messages.ai }
           if enabled
             # Completed log message
-            assert_equal metric_name, log.metric, -> { $log_structs.ai }
+            assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
             # Wait log message
-            assert log = $log_structs.last, -> { $log_structs.ai }
-            assert_equal "#{metric_name}/wait", log.metric, -> { $log_structs.ai }
+            assert waited_log = log_messages.shift, -> { log_messages.ai }
+            assert_equal "#{metric_name}/wait", waited_log.metric, -> { waited_log.ai }
           else
             # Timeout and wait has no effect when run inline
-            assert_equal metric_name, log.metric, -> { $log_structs.ai }
+            assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
           end
+        end
+
+        it ':on_exception_level' do
+          minion = ParallelMinion::Minion.new(
+            description:        'Test',
+            on_exception_level: :error
+          ) do |h|
+            raise 'Oh No'
+          end
+          # Wait for thread to complete
+          assert_raises RuntimeError do
+            minion.result
+          end
+
+          assert started_log = log_messages.shift, -> { log_messages.ai }
+          assert completed_log = log_messages.shift, -> { log_messages.ai }
+
+          assert_equal :error, completed_log.level
+          assert_equal :error, completed_log.level
+          assert_equal "Completed Test -- Exception: RuntimeError: Oh No", completed_log.message
+          refute completed_log.backtrace.empty?
         end
 
         it 'handle multiple minions concurrently' do

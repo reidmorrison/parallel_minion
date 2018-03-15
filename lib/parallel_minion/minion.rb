@@ -22,7 +22,7 @@ module ParallelMinion
     # Metrics [String]
     attr_reader :metric, :wait_metric
 
-    attr_reader :on_timeout, :log_exception, :start_time
+    attr_reader :on_timeout, :log_exception, :start_time, :on_exception_level, :description
 
     # Give an infinite amount of time to wait for a Minion to complete a task
     INFINITE = 0
@@ -177,6 +177,10 @@ module ParallelMinion
     #        Any unhandled exception raised in the block will not be logged
     #      Default: :partial
     #
+    #   :on_exception_level [:trace | :debug | :info | :warn | :error | :fatal]
+    #     Override the log level only when an exception occurs.
+    #     Default: ParallelMinion::Minion.completed_log_level
+    #
     #   :enabled [Boolean]
     #     Override the global setting: `ParallelMinion::Minion.enabled?` for this minion instance.
     #
@@ -193,25 +197,53 @@ module ParallelMinion
     #     thread.pool.enabled=true
     #
     # Example:
-    #   ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in parallel', timeout: 1000) do |date|
+    #   ParallelMinion::Minion.new(
+    #     10.days.ago,
+    #     description: 'Doing something else in parallel',
+    #     timeout:     1000
+    #   ) do |date|
     #     MyTable.where('created_at <= ?', date).count
     #   end
-    def initialize(*arguments, description: 'Minion', metric: nil, log_exception: nil, enabled: self.class.enabled?, timeout: INFINITE, on_timeout: nil, wait_metric: nil, &block)
+    #
+    # Example, when the result is being ignored, log full exception as an error:
+    #   ParallelMinion::Minion.new(
+    #     customer,
+    #     description:        "We don't care about the result",
+    #     log_exception:      :full,
+    #     on_exception_level: :error
+    #   ) do |customer|
+    #     customer.save!
+    #   end
+    def initialize(*arguments,
+                   description: 'Minion',
+                   metric: nil,
+                   log_exception: nil,
+                   on_exception_level: self.class.completed_log_level,
+                   enabled: self.class.enabled?,
+                   timeout: INFINITE,
+                   on_timeout: nil,
+                   wait_metric: nil,
+                   &block)
       raise 'Missing mandatory block that Minion must perform' unless block
-      @start_time    = Time.now
-      @exception     = nil
-      @arguments     = arguments
-      @timeout       = timeout.to_f
-      @description   = description.to_s
-      @metric        = metric
-      @log_exception = log_exception
-      @enabled       = enabled
-      @on_timeout    = on_timeout
+      @start_time         = Time.now
+      @exception          = nil
+      @arguments          = arguments
+      @timeout            = timeout.to_f
+      @description        = description.to_s
+      @metric             = metric
+      @log_exception      = log_exception
+      @on_exception_level = on_exception_level
+      @enabled            = enabled
+      @on_timeout         = on_timeout
 
-      @wait_metric   = (wait_metric || "#{metric}/wait") if @metric
+      @wait_metric        = (wait_metric || "#{metric}/wait") if @metric
 
       # When minion is disabled it is obvious in the logs since the name will now be 'Inline' instead of 'Minion'
-      self.logger    = SemanticLogger['Inline'] unless @enabled
+      unless @enabled
+        l           = self.class.logger.dup
+        l.name      = 'Inline'
+        self.logger = l
+      end
 
       @enabled ? run(&block) : run_inline(&block)
     end
@@ -287,8 +319,14 @@ module ParallelMinion
     # Useful for debugging, testing, and when running in batch environments.
     def run_inline(&block)
       begin
-        logger.public_send(self.class.started_log_level, "Started #{@description}")
-        logger.measure(self.class.completed_log_level, "Completed #{@description}", log_exception: @log_exception, metric: metric) do
+        logger.public_send(self.class.started_log_level, "Started #{description}")
+        logger.measure(
+          self.class.completed_log_level,
+          "Completed #{description}",
+          log_exception:      log_exception,
+          on_exception_level: on_exception_level,
+          metric:             metric
+        ) do
           @result = instance_exec(*arguments, &block)
         end
       rescue Exception => exc
@@ -318,7 +356,14 @@ module ParallelMinion
             logger.public_send(self.class.started_log_level, "Started #{description}")
             begin
               proc = Proc.new { run_in_scope(scopes, &block) }
-              logger.measure(self.class.completed_log_level, "Completed #{description}", log_exception: log_exception, metric: metric, &proc)
+              logger.measure(
+                self.class.completed_log_level,
+                "Completed #{description}",
+                log_exception:      log_exception,
+                on_exception_level: on_exception_level,
+                metric:             metric,
+                &proc
+              )
             rescue Exception => exc
               @exception = exc
               nil
