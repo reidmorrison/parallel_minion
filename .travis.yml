@@ -10,21 +10,21 @@ rvm:
   - 2.3.6
   - 2.4.3
   - 2.5.0
-  - jruby-9.1.15.0
+  - jruby-9.1.16.0
 
 matrix:
   exclude:
-    - rvm: jruby-9.1.15.0
-      gemfile: gemfiles/rails_5.0.gemfile
-    - rvm: jruby-9.1.15.0
-      gemfile: gemfiles/rails_5.1.gemfile
     - rvm: 2.4.3
       gemfile: gemfiles/rails_4.2.gemfile
     - rvm: 2.5.0
       gemfile: gemfiles/rails_4.2.gemfile
   allow_failures:
-    - rvm: jruby-9.1.15.0
+    - rvm: jruby-9.1.16.0
       gemfile: gemfiles/rails_4.2.gemfile
+    - rvm: jruby-9.1.16.0
+      gemfile: gemfiles/rails_5.0.gemfile
+    - rvm: jruby-9.1.16.0
+      gemfile: gemfiles/rails_5.1.gemfile
 
 bundler_args: --without development
 

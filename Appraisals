@@ -1,4 +1,5 @@
 appraise 'rails_4.2' do
+  gem 'activerecord-jdbcsqlite3-adapter', '~> 1.0', platform: :jruby
   gem 'activerecord', '~> 4.2.0'
 end
 

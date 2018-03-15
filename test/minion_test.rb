@@ -177,7 +177,6 @@ class MinionTest < Minitest::Test
           assert completed_log = log_messages.shift, -> { log_messages.ai }
 
           assert_equal :error, completed_log.level
-          assert_equal :error, completed_log.level
           assert_equal "Completed Test -- Exception: RuntimeError: Oh No", completed_log.message
           refute completed_log.backtrace.empty?
         end
