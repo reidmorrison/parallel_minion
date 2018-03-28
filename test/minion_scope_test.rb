@@ -3,11 +3,11 @@ require 'erb'
 require 'active_record'
 
 ActiveRecord::Base.logger         = SemanticLogger[ActiveRecord]
-ActiveRecord::Base.configurations = YAML::load(ERB.new(IO.read('test/config/database.yml')).result)
+ActiveRecord::Base.configurations = YAML.safe_load(ERB.new(IO.read('test/config/database.yml')).result)
 ActiveRecord::Base.establish_connection(:test)
 
-ActiveRecord::Schema.define :version => 0 do
-  create_table :people, :force => true do |t|
+ActiveRecord::Schema.define version: 0 do
+  create_table :people, force: true do |t|
     t.string :name
     t.string :state
     t.string :zip_code
@@ -22,12 +22,12 @@ class MinionScopeTest < Minitest::Test
     [false, true].each do |enabled|
       describe ".new with enabled: #{enabled.inspect}" do
         before do
-          Person.create(name: 'Jack', state: 'FL', zip_code: 38729)
-          Person.create(name: 'John', state: 'FL', zip_code: 35363)
-          Person.create(name: 'Jill', state: 'FL', zip_code: 73534)
-          Person.create(name: 'Joe', state: 'NY', zip_code: 45325)
-          Person.create(name: 'Jane', state: 'NY', zip_code: 45325)
-          Person.create(name: 'James', state: 'CA', zip_code: 123123)
+          Person.create(name: 'Jack', state: 'FL', zip_code: 38_729)
+          Person.create(name: 'John', state: 'FL', zip_code: 35_363)
+          Person.create(name: 'Jill', state: 'FL', zip_code: 73_534)
+          Person.create(name: 'Joe', state: 'NY', zip_code: 45_325)
+          Person.create(name: 'Jane', state: 'NY', zip_code: 45_325)
+          Person.create(name: 'James', state: 'CA', zip_code: 123_123)
           # Instruct Minions to adhere to any dynamic scopes for Person model
           ParallelMinion::Minion.scoped_classes << Person
           ParallelMinion::Minion.enabled = enabled
@@ -52,7 +52,6 @@ class MinionScopeTest < Minitest::Test
             assert_equal 3, minion.result
           end
         end
-
       end
     end
   end

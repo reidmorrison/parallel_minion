@@ -22,7 +22,7 @@ module ParallelMinion
     # Metrics [String]
     attr_reader :metric, :wait_metric
 
-    attr_reader :on_timeout, :log_exception, :start_time, :on_exception_level, :description
+    attr_reader :on_timeout, :log_exception, :start_time, :on_exception_level
 
     # Give an infinite amount of time to wait for a Minion to complete a task
     INFINITE = 0
@@ -40,8 +40,8 @@ module ParallelMinion
     # - Production:
     #     Batch processing in Rocket Job where throughput is more important than latency.
     #       http://rocketjob.io
-    def self.enabled=(enabled)
-      @enabled = enabled
+    class << self
+      attr_writer :enabled
     end
 
     # Returns whether minions are enabled to run in their own threads
@@ -54,8 +54,8 @@ module ParallelMinion
     #
     # Example:
     #   ...
-    def self.scoped_classes
-      @scoped_classes
+    class << self
+      attr_reader :scoped_classes
     end
 
     def self.scoped_classes=(scoped_classes)
@@ -73,8 +73,8 @@ module ParallelMinion
       @started_log_level = level
     end
 
-    def self.started_log_level
-      @started_log_level
+    class << self
+      attr_reader :started_log_level
     end
 
     # Change the log level for the Completed log message.
@@ -88,8 +88,8 @@ module ParallelMinion
       @completed_log_level = level
     end
 
-    def self.completed_log_level
-      @completed_log_level
+    class << self
+      attr_reader :completed_log_level
     end
 
     self.started_log_level   = :info
@@ -257,7 +257,12 @@ module ParallelMinion
       # Return nil if Minion is still working and has time left to finish
       if working?
         ms = time_left
-        logger.measure(self.class.completed_log_level, "Waited for Minion to complete: #{description}", min_duration: 0.01, metric: wait_metric) do
+        logger.measure(
+          self.class.completed_log_level,
+          "Waited for Minion to complete: #{description}",
+          min_duration: 0.01,
+          metric:       wait_metric
+        ) do
           if @thread.join(ms.nil? ? nil : ms / 1000).nil?
             @thread.raise(@on_timeout.new("Minion: #{description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for: #{description}")
@@ -289,7 +294,7 @@ module ParallelMinion
     # Returns 0 if no time is left
     # Returns nil if their is no time limit. I.e. :timeout was set to Minion::INFINITE (infinite time left)
     def time_left
-      return nil if (timeout == 0) || (timeout == -1)
+      return nil if timeout.zero? || (timeout == -1)
       duration = timeout - (Time.now - start_time) * 1000
       duration <= 0 ? 0 : duration
     end
@@ -304,37 +309,39 @@ module ParallelMinion
     if defined?(ActiveRecord)
       if ActiveRecord::VERSION::MAJOR >= 4
         def self.current_scopes
-          scoped_classes.collect { |klass| klass.all }
+          scoped_classes.collect(&:all)
         end
       else
         def self.current_scopes
-          scoped_classes.collect { |klass| klass.scoped }
+          scoped_classes.collect(&:scoped)
         end
       end
     end
 
     private
 
+    # rubocop:disable Lint/RescueException
+
     # Run the supplied block of code in the current thread.
     # Useful for debugging, testing, and when running in batch environments.
     def run_inline(&block)
-      begin
-        logger.public_send(self.class.started_log_level, "Started #{description}")
-        logger.measure(
-          self.class.completed_log_level,
-          "Completed #{description}",
-          log_exception:      log_exception,
-          on_exception_level: on_exception_level,
-          metric:             metric
-        ) do
-          @result = instance_exec(*arguments, &block)
-        end
-      rescue Exception => exc
-        @exception = exc
-      ensure
-        @duration = Time.now - start_time
+      logger.public_send(self.class.started_log_level, "Started #{description}")
+      logger.measure(
+        self.class.completed_log_level,
+        "Completed #{description}",
+        log_exception:      log_exception,
+        on_exception_level: on_exception_level,
+        metric:             metric
+      ) do
+        @result = instance_exec(*arguments, &block)
       end
+    rescue Exception => exc
+      @exception = exc
+    ensure
+      @duration = Time.now - start_time
     end
+
+    # rubocop:enable Lint/RescueException
 
     def run(&block)
       # Capture tags from current thread
@@ -354,8 +361,9 @@ module ParallelMinion
         SemanticLogger.tagged(*tags) do
           SemanticLogger.named_tagged(named_tags) do
             logger.public_send(self.class.started_log_level, "Started #{description}")
+            # rubocop:disable Lint/RescueException
             begin
-              proc = Proc.new { run_in_scope(scopes, &block) }
+              proc = proc { run_in_scope(scopes, &block) }
               logger.measure(
                 self.class.completed_log_level,
                 "Completed #{description}",
@@ -372,6 +380,7 @@ module ParallelMinion
               # Return any database connections used by this thread back to the pool
               ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
             end
+            # rubocop:enable Lint/RescueException
           end
         end
       end
@@ -383,12 +392,11 @@ module ParallelMinion
       else
         # Use the captured scope when running the block.
         # Each Class to scope requires passing a block to .scoping.
-        proc  = Proc.new { instance_exec(*@arguments, &block) }
+        proc  = proc { instance_exec(*@arguments, &block) }
         first = scopes.shift
-        scopes.each { |scope| proc = Proc.new { scope.scoping(&proc) } }
+        scopes.each { |scope| proc = proc { scope.scoping(&proc) } }
         @result = first.scoping(&proc)
       end
     end
-
   end
 end

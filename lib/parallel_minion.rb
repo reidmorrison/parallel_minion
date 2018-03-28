@@ -1,4 +1,3 @@
-require 'thread'
 require 'semantic_logger'
 
 module ParallelMinion

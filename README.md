@@ -1,7 +1,7 @@
 parallel_minion [![Build Status](https://secure.travis-ci.org/reidmorrison/parallel_minion.png?branch=master)](http://travis-ci.org/reidmorrison/parallel_minion)
 ===============
 
-Pragmatic approach to parallel processing in Ruby
+Wrap Ruby code with a minion so that it is run on a parallel thread.
 
 ## Description
 

@@ -9,3 +9,4 @@ Gemfile.lock
 
 *.lock
 /docs/_site
+.rakeTasks

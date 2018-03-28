@@ -1,3 +1,3 @@
-module ParallelMinion #:nodoc
-  VERSION = '1.3.0'
+module ParallelMinion
+  VERSION = '1.3.0'.freeze
 end

@@ -15,7 +15,7 @@ class MinionTest < Minitest::Test
       end
 
       def log(log)
-        self.messages << log.dup
+        messages << log.dup
       end
     end
 
@@ -56,7 +56,7 @@ class MinionTest < Minitest::Test
         end
 
         it 'raise exception' do
-          minion = ParallelMinion::Minion.new(description: 'Test') { raise "An exception" }
+          minion = ParallelMinion::Minion.new(description: 'Test') { raise 'An exception' }
           assert_raises RuntimeError do
             minion.result
           end
@@ -68,7 +68,7 @@ class MinionTest < Minitest::Test
           assert_equal name, minion.logger.name
         end
 
-        # TODO Blocks still have access to their original scope if variables cannot be
+        # TODO: Blocks still have access to their original scope if variables cannot be
         #      resolved first by the parameters, then by the values in Minion itself
         #        it 'not have access to local variables' do
         #          name = 'Jack'
@@ -96,7 +96,7 @@ class MinionTest < Minitest::Test
           SemanticLogger.tagged('TAG') do
             assert_equal 'TAG', SemanticLogger.tags.last
             minion = ParallelMinion::Minion.new(description: 'Tag Test') do
-              logger.info "Tag Test"
+              logger.info 'Tag Test'
               logger.tags.last
             end
           end
@@ -108,7 +108,7 @@ class MinionTest < Minitest::Test
           SemanticLogger.named_tagged(tag: 'TAG') do
             assert_equal({tag: 'TAG'}, SemanticLogger.named_tags)
             minion = ParallelMinion::Minion.new(description: 'Named Tags Test') do
-              logger.info "Named Tags Test"
+              logger.info 'Named Tags Test'
               SemanticLogger.named_tags
             end
           end
@@ -122,7 +122,7 @@ class MinionTest < Minitest::Test
               assert_equal({tag: 'TAG'}, SemanticLogger.named_tags)
               assert_equal 'TAG', SemanticLogger.tags.last
               minion = ParallelMinion::Minion.new(description: 'Tags Test') do
-                logger.info "Tags Test"
+                logger.info 'Tags Test'
                 [SemanticLogger.named_tags, SemanticLogger.tags.last]
               end
 
@@ -130,7 +130,6 @@ class MinionTest < Minitest::Test
               assert_equal 'TAG', minion.result.last
             end
           end
-
         end
 
         it 'include metric' do
@@ -147,17 +146,14 @@ class MinionTest < Minitest::Test
           assert_equal 123, hash[:value]
           assert_equal 321, value
 
-          assert started_log = log_messages.shift, -> { log_messages.ai }
+          assert log_messages.shift, -> { log_messages.ai }
           assert completed_log = log_messages.shift, -> { log_messages.ai }
+          # Completed log message
+          assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
           if enabled
-            # Completed log message
-            assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
             # Wait log message
             assert waited_log = log_messages.shift, -> { log_messages.ai }
             assert_equal "#{metric_name}/wait", waited_log.metric, -> { waited_log.ai }
-          else
-            # Timeout and wait has no effect when run inline
-            assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
           end
         end
 
@@ -165,7 +161,7 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(
             description:        'Test',
             on_exception_level: :error
-          ) do |h|
+          ) do |_h|
             raise 'Oh No'
           end
           # Wait for thread to complete
@@ -173,17 +169,17 @@ class MinionTest < Minitest::Test
             minion.result
           end
 
-          assert started_log = log_messages.shift, -> { log_messages.ai }
+          assert log_messages.shift, -> { log_messages.ai }
           assert completed_log = log_messages.shift, -> { log_messages.ai }
 
           assert_equal :error, completed_log.level
-          assert_equal "Completed Test -- Exception: RuntimeError: Oh No", completed_log.message
+          assert_equal 'Completed Test -- Exception: RuntimeError: Oh No', completed_log.message
           refute completed_log.backtrace.empty?
         end
 
         it 'handle multiple minions concurrently' do
           # Start 10 minions
-          minions = 10.times.collect do |i|
+          minions = Array.new(10) do |i|
             # Each Minion returns its index in the collection
             ParallelMinion::Minion.new(i, description: "Minion:#{i}") { |counter| counter }
           end
@@ -237,15 +233,13 @@ class MinionTest < Minitest::Test
         end
 
         it 'keep the original arguments' do
-          minion = ParallelMinion::Minion.new(1, 'data', 14.1, description: 'Test') do |num, str, float|
+          minion = ParallelMinion::Minion.new(1, 'data', 14.1, description: 'Test') do |num, _str, float|
             num + float
           end
           assert_equal 15.1, minion.result
           assert_equal [1, 'data', 14.1], minion.arguments
         end
       end
-
     end
-
   end
 end

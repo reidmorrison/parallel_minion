@@ -26,6 +26,5 @@ module ParallelMinion #:nodoc:
     #     end
     #   end
     config.parallel_minion = ::ParallelMinion::Minion
-
   end
 end
