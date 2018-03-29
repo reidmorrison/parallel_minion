@@ -1,5 +1,6 @@
-parallel_minion [![Build Status](https://secure.travis-ci.org/reidmorrison/parallel_minion.png?branch=master)](http://travis-ci.org/reidmorrison/parallel_minion)
-===============
+# Parallel Minion
+[![Build Status](https://secure.travis-ci.org/reidmorrison/parallel_minion.png?branch=master)](http://travis-ci.org/reidmorrison/parallel_minion)
+[![Gem Version](https://img.shields.io/gem/v/parallel_minion.svg)](https://rubygems.org/gems/parallel_minion) [![Build Status](https://travis-ci.org/reidmorrison/parallel_minion.svg?branch=master)](https://travis-ci.org/reidmorrison/parallel_minion) [![Downloads](https://img.shields.io/gem/dt/parallel_minion.svg)](https://rubygems.org/gems/parallel_minion) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg)
 
 Wrap Ruby code with a minion so that it is run on a parallel thread.
 
