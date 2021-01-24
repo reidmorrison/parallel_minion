@@ -70,6 +70,7 @@ module ParallelMinion
     #   :trace, :debug, :info, :warn, :error, :fatal
     def self.started_log_level=(level)
       raise(ArgumentError, "Invalid log level: #{level}") unless SemanticLogger::LEVELS.include?(level)
+
       @started_log_level = level
     end
 
@@ -85,6 +86,7 @@ module ParallelMinion
     #   :trace, :debug, :info, :warn, :error, :fatal
     def self.completed_log_level=(level)
       raise(ArgumentError, "Invalid log level: #{level}") unless SemanticLogger::LEVELS.include?(level)
+
       @completed_log_level = level
     end
 
@@ -96,7 +98,7 @@ module ParallelMinion
     self.completed_log_level = :info
     self.enabled             = true
     self.scoped_classes      = []
-    logger.name              = 'Minion'
+    logger.name              = "Minion"
 
     # Create a new Minion
     #
@@ -215,7 +217,7 @@ module ParallelMinion
     #     customer.save!
     #   end
     def initialize(*arguments,
-                   description: 'Minion',
+                   description: "Minion",
                    metric: nil,
                    log_exception: nil,
                    on_exception_level: self.class.completed_log_level,
@@ -224,7 +226,8 @@ module ParallelMinion
                    on_timeout: nil,
                    wait_metric: nil,
                    &block)
-      raise 'Missing mandatory block that Minion must perform' unless block
+      raise "Missing mandatory block that Minion must perform" unless block
+
       @start_time         = Time.now
       @exception          = nil
       @arguments          = arguments
@@ -241,7 +244,7 @@ module ParallelMinion
       # When minion is disabled it is obvious in the logs since the name will now be 'Inline' instead of 'Minion'
       unless @enabled
         l           = self.class.logger.dup
-        l.name      = 'Inline'
+        l.name      = "Inline"
         self.logger = l
       end
 
@@ -295,6 +298,7 @@ module ParallelMinion
     # Returns nil if their is no time limit. I.e. :timeout was set to Minion::INFINITE (infinite time left)
     def time_left
       return nil if timeout.zero? || (timeout == -1)
+
       duration = timeout - (Time.now - start_time) * 1000
       duration <= 0 ? 0 : duration
     end
@@ -335,8 +339,8 @@ module ParallelMinion
       ) do
         @result = instance_exec(*arguments, &block)
       end
-    rescue Exception => exc
-      @exception = exc
+    rescue Exception => e
+      @exception = e
     ensure
       @duration = Time.now - start_time
     end
@@ -372,8 +376,8 @@ module ParallelMinion
                 metric:             metric,
                 &proc
               )
-            rescue Exception => exc
-              @exception = exc
+            rescue Exception => e
+              @exception = e
               nil
             ensure
               @duration = Time.now - start_time

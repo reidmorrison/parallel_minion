@@ -1,10 +1,10 @@
 AllCops:
-  TargetRubyVersion: 2.4
+  TargetRubyVersion: 2.5
+  NewCops: enable
   Exclude:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
-
 #
 # RuboCop built-in settings.
 #   For documentation on all settings see: https://docs.rubocop.org/en/stable
@@ -46,7 +46,7 @@ Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
-  ExcludedMethods:
+  IgnoredMethods:
     - "aasm"
     - "included"
 

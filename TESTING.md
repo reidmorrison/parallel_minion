@@ -15,12 +15,12 @@ For all supported Rails/ActiveRecord versions:
 
 Or for specific version one:
 
-    appraisal rails_4.2 rake
+    appraisal rails_6.0 rake
 
 Or for one particular test file
 
-    appraisal rails_4.2 ruby test/minion_test.rb
+    appraisal rails_6.0 ruby test/minion_test.rb
 
 Or down to one test case
 
-    appraisal rails_4.2 ruby test/minion_test.rb -n "/raise exception/"
+    appraisal rails_6.0 ruby test/minion_test.rb -n "/raise exception/"
