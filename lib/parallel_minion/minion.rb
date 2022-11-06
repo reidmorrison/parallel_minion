@@ -98,7 +98,6 @@ module ParallelMinion
     self.completed_log_level = :info
     self.enabled             = true
     self.scoped_classes      = []
-    logger.name              = "Minion"
 
     # Create a new Minion
     #
@@ -241,7 +240,7 @@ module ParallelMinion
 
       @wait_metric        = (wait_metric || "#{metric}/wait") if @metric
 
-      # When minion is disabled it is obvious in the logs since the name will now be 'Inline' instead of 'Minion'
+      # When minion is disabled make it obvious in the logs by setting the name to 'Inline' instead of 'Minion'.
       unless @enabled
         l           = self.class.logger.dup
         l.name      = "Inline"

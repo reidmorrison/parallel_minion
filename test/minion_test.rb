@@ -3,36 +3,14 @@ require_relative "./test_helper"
 # Test ParallelMinion standalone without Rails
 # Run this test standalone to verify it has no Rails dependencies
 class MinionTest < Minitest::Test
-  include SemanticLogger::Loggable
-
-  class InMemoryAppender < SemanticLogger::Subscriber
-    attr_reader :messages
-
-    def initialize
-      @messages = []
-      self.name = "Minion"
-      super
-    end
-
-    def log(log)
-      messages << log.dup
-    end
-  end
-
   describe ParallelMinion::Minion do
-    let :log_messages do
-      appender.messages
+    let(:logger) do
+      l      = SemanticLogger::Test::CaptureLogEvents.new
+      l.name = "Minion"
+      l
     end
 
-    let :appender do
-      InMemoryAppender.new
-    end
-
-    before do
-      ParallelMinion::Minion.logger = appender
-    end
-
-    [false, true].each do |enabled|
+    [false].each do |enabled|
       describe enabled ? "enabled" : "disabled" do
         before do
           ParallelMinion::Minion.enabled = enabled
@@ -61,12 +39,6 @@ class MinionTest < Minitest::Test
           assert_raises RuntimeError do
             minion.result
           end
-        end
-
-        it "has correct logger name" do
-          minion = ParallelMinion::Minion.new { 196 }
-          name   = enabled ? "Minion" : "Inline"
-          assert_equal name, minion.logger.name
         end
 
         # TODO: Blocks still have access to their original scope if variables cannot be
@@ -117,7 +89,6 @@ class MinionTest < Minitest::Test
         end
 
         it "copy across tags and named tags" do
-          minion = nil
           SemanticLogger.tagged("TAG") do
             SemanticLogger.named_tagged(tag: "TAG") do
               assert_equal({tag: "TAG"}, SemanticLogger.named_tags)
@@ -133,49 +104,74 @@ class MinionTest < Minitest::Test
           end
         end
 
-        it "include metric" do
-          metric_name = "model/method"
-          hash        = {value: 23}
-          value       = 47
-          minion      = ParallelMinion::Minion.new(hash, description: "Test", metric: metric_name) do |h|
-            value     = 321
-            h[:value] = 123
-            sleep 1
-            456
+        it "logs messages" do
+          minion = nil
+          ParallelMinion::Minion.stub(:logger, logger) do
+            minion = ParallelMinion::Minion.new(hash, description: "Test", metric: "model/method") do |_h|
+              sleep 1
+              1234
+            end
+            minion.result
           end
-          assert_equal 456, minion.result
-          assert_equal 123, hash[:value]
-          assert_equal 321, value
 
-          assert log_messages.shift, -> { log_messages.ai }
-          assert completed_log = log_messages.shift, -> { log_messages.ai }
-          # Completed log message
-          assert_equal metric_name, completed_log.metric, -> { completed_log.ai }
+          messages = minion.logger.events
+          name     = enabled ? "Minion" : "Inline"
+          count    = enabled ? 3 : 2
+          assert_equal count, messages.count, messages
+          assert_equal "Started Test", messages[0].message
+          assert_equal :info, messages[0].level
+          assert_equal name, messages[0].name
+
+          assert_equal "Completed Test", messages[1].message
+          assert_equal :info, messages[1].level
+          assert_equal "model/method", messages[1].metric
+          assert_equal name, messages[1].name
+
           if enabled
-            # Wait log message
-            assert waited_log = log_messages.shift, -> { log_messages.ai }
-            assert_equal "#{metric_name}/wait", waited_log.metric, -> { waited_log.ai }
+            assert_equal "Waited for Minion to complete: Test", messages[2].message
+            assert_equal :info, messages[2].level
+            assert_equal "model/method/wait", messages[2].metric
+            assert_equal name, messages[2].name
           end
         end
 
         it ":on_exception_level" do
-          minion = ParallelMinion::Minion.new(
-            description:        "Test",
-            on_exception_level: :error
-          ) do |_h|
-            raise "Oh No"
-          end
-          # Wait for thread to complete
-          assert_raises RuntimeError do
-            minion.result
+          minion = nil
+          ParallelMinion::Minion.stub(:logger, logger) do
+            minion = ParallelMinion::Minion.new(
+              description:        "Test",
+              on_exception_level: :error,
+              metric:             "class/method"
+            ) do |_h|
+              sleep 1
+              raise "Oh No"
+            end
+            # Wait for thread to complete
+            assert_raises RuntimeError do
+              minion.result
+            end
           end
 
-          assert log_messages.shift, -> { log_messages.ai }
-          assert completed_log = log_messages.shift, -> { log_messages.ai }
+          messages = minion.logger.events
+          name     = enabled ? "Minion" : "Inline"
+          count    = enabled ? 3 : 2
+          assert_equal count, messages.count, messages
+          assert_equal "Started Test", messages[0].message
+          assert_equal :info, messages[0].level
+          assert_equal name, messages[0].name
 
-          assert_equal :error, completed_log.level
-          assert_equal "Completed Test -- Exception: RuntimeError: Oh No", completed_log.message
-          refute completed_log.backtrace.empty?
+          assert_equal "Completed Test -- Exception: RuntimeError: Oh No", messages[1].message
+          assert_equal :error, messages[1].level
+          refute messages[1].backtrace.empty?
+          assert_equal "class/method", messages[1].metric
+          assert_equal name, messages[1].name
+
+          if enabled
+            assert_equal "Waited for Minion to complete: Test", messages[2].message
+            assert_equal :info, messages[2].level
+            assert_equal "class/method/wait", messages[2].metric
+            assert_equal name, messages[2].name
+          end
         end
 
         it "handle multiple minions concurrently" do
