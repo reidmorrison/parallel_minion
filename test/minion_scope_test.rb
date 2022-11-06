@@ -3,7 +3,7 @@ require "erb"
 require "active_record"
 
 ActiveRecord::Base.logger         = SemanticLogger[ActiveRecord]
-ActiveRecord::Base.configurations = YAML.safe_load(ERB.new(IO.read("test/config/database.yml")).result)
+ActiveRecord::Base.configurations = YAML.safe_load(ERB.new(File.read("test/config/database.yml")).result)
 ActiveRecord::Base.establish_connection(:test)
 
 ActiveRecord::Schema.define version: 0 do

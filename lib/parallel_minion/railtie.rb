@@ -1,5 +1,5 @@
-module ParallelMinion #:nodoc:
-  class Railtie < Rails::Railtie #:nodoc:
+module ParallelMinion # :nodoc:
+  class Railtie < Rails::Railtie # :nodoc:
     #
     # Make the ParallelMinion config available in the Rails application config
     #

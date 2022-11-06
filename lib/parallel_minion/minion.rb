@@ -299,7 +299,7 @@ module ParallelMinion
     def time_left
       return nil if timeout.zero? || (timeout == -1)
 
-      duration = timeout - (Time.now - start_time) * 1000
+      duration = timeout - ((Time.now - start_time) * 1000)
       duration <= 0 ? 0 : duration
     end
 

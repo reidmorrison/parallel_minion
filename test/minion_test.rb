@@ -11,6 +11,7 @@ class MinionTest < Minitest::Test
     def initialize
       @messages = []
       self.name = "Minion"
+      super
     end
 
     def log(log)
