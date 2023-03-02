@@ -51,7 +51,7 @@ has been achieved by moving existing blocks of code into Minions.
 * Code: `git clone git://github.com/reidmorrison/parallel_minion.git`
 * Home: <https://github.com/reidmorrison/parallel_minion>
 * Bugs: <http://github.com/reidmorrison/parallel_minion/issues>
-* Gems: <http://rubygems.org/gems/parallel_minion>
+* Gems: <https://rubygems.org/gems/parallel_minion>
 
 This project uses [Semantic Versioning](http://semver.org/).
 
