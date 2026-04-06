@@ -381,7 +381,7 @@ module ParallelMinion
             ensure
               @duration = Time.now - start_time
               # Return any database connections used by this thread back to the pool
-              ActiveRecord::Base.clear_active_connections! if defined?(ActiveRecord::Base)
+              ActiveRecord::Base.connection_handler.clear_active_connections! if defined?(ActiveRecord::Base)
             end
             # rubocop:enable Lint/RescueException
           end

@@ -1,4 +1,5 @@
 require "minitest/autorun"
+require "minitest/mock"
 require "amazing_print"
 require "semantic_logger"
 require "parallel_minion"

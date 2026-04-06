@@ -46,6 +46,14 @@ has been achieved by moving existing blocks of code into Minions.
 
     gem install parallel_minion
 
+## Rails 7.2 compatibility
+
+- **Apps** need **Ruby ≥ 3.1** (Rails 7.2 requirement).
+- **Code:** Thread cleanup uses `ActiveRecord::Base.connection_handler.clear_active_connections!` instead of `ActiveRecord::Base.clear_active_connections!` because Rails 7 deprecates the latter.
+- **Railtie:** Unchanged (`config.parallel_minion` as before).
+- **CI:** `rails_7.2` Appraisal  `gemfiles/rails_7.2.gemfile`, Ruby 3.2. The 7.2 appraisal pins **Minitest ~> 5.0** (tests use `stub`, removed in Minitest 6).
+- **sqlite3 (dev):** The 7.2 appraisal allows `sqlite3 >= 1.4` (including 2.x). Other gemfiles use `sqlite3 >= 1.5, < 2` to skip **1.4.4**, which often fails to compile on modern toolchains (all OSes).
+
 ## Meta
 
 * Code: `git clone git://github.com/reidmorrison/parallel_minion.git`
