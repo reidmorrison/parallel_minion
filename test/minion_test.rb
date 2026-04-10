@@ -107,7 +107,7 @@ class MinionTest < Minitest::Test
         it "logs messages" do
           minion = nil
           ParallelMinion::Minion.stub(:logger, logger) do
-            minion = ParallelMinion::Minion.new(hash, description: "Test", metric: "model/method") do |_h|
+            minion = ParallelMinion::Minion.new({}, description: "Test", metric: "model/method") do |_h|
               sleep 1
               1234
             end
