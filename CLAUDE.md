@@ -15,7 +15,8 @@ from the `nav_items` list in `docs/_layouts/default.html`, so a new page must be
 The site also serves two files for AI assistants: `docs/llms.txt`, a hand-maintained index of the
 pages (update it when adding or renaming one), and `docs/llms-full.txt`, every page concatenated.
 **After editing any `docs/*.md` page, re-run `bundle exec rake llms_full`** and commit the result;
-never edit `llms-full.txt` by hand, and add new pages to the `pages` list in that task. The
+never edit `llms-full.txt` by hand. A new page also goes in `LLMS_PAGES` in the `Rakefile`, which
+sets the order; the task raises if a `docs/*.md` page is missing from it. The
 `docs/*.md` sources also ship inside the gem package (see `spec.files` in the gemspec) so coding
 agents inside applications can read them locally.
 
