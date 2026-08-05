@@ -16,6 +16,11 @@ class MinionTest < Minitest::Test
           ParallelMinion::Minion.enabled = enabled
         end
 
+        after do
+          ParallelMinion::Minion.context_handlers = []
+          Thread.current[:tenant] = nil
+        end
+
         it "without parameters" do
           minion = ParallelMinion::Minion.new { 196 }
 
@@ -294,6 +299,97 @@ class MinionTest < Minitest::Test
             end
 
             assert_instance_of TypeError, minion.exception
+          end
+        end
+
+        describe "application context" do
+          # Stands in for any library holding its scoping context in thread local state,
+          # such as ActsAsTenant.current_tenant or a Rails Current attribute.
+          def register_tenant_context
+            ParallelMinion::Minion.register_context(
+              capture: -> { Thread.current[:tenant] },
+              around:  lambda { |tenant, &block|
+                previous                = Thread.current[:tenant]
+                Thread.current[:tenant] = tenant
+                begin
+                  block.call
+                ensure
+                  Thread.current[:tenant] = previous
+                end
+              }
+            )
+          end
+
+          it "carry thread local context into the minion" do
+            register_tenant_context
+            Thread.current[:tenant] = "acme"
+
+            minion = ParallelMinion::Minion.new(description: "Test") { Thread.current[:tenant] }
+
+            assert_equal "acme", minion.result
+          end
+
+          it "leave the calling thread untouched" do
+            register_tenant_context
+            Thread.current[:tenant] = "acme"
+
+            ParallelMinion::Minion.new(description: "Test") { Thread.current[:tenant] }.result
+
+            assert_equal "acme", Thread.current[:tenant]
+          end
+
+          it "capture in the calling thread, not in the minion" do
+            register_tenant_context
+            Thread.current[:tenant] = "acme"
+
+            minion = ParallelMinion::Minion.new(description: "Test") { Thread.current[:tenant] }
+            # Changing the value after the minion was created must not affect it
+            Thread.current[:tenant] = "changed"
+
+            assert_equal "acme", minion.result
+          end
+
+          it "nest handlers with the first registered outermost" do
+            order = Queue.new
+            2.times do |i|
+              ParallelMinion::Minion.register_context(
+                capture: -> { i },
+                around:  lambda { |index, &block|
+                  order << "before#{index}"
+                  block.call
+                  order << "after#{index}"
+                }
+              )
+            end
+
+            ParallelMinion::Minion.new(description: "Test") { order << "task" }.result
+
+            assert_equal %w[before0 before1 task after1 after0], Array.new(order.size) { order.pop }
+          end
+
+          it "raise when a handler does not yield" do
+            ParallelMinion::Minion.register_context(capture: -> {}, around: ->(_value, &_block) {})
+
+            minion = ParallelMinion::Minion.new(description: "Test") { 42 }
+
+            error = assert_raises RuntimeError do
+              minion.result
+            end
+
+            assert_match(/context handler did not yield/, error.message)
+          end
+
+          it "raise from the initializer when capture fails" do
+            ParallelMinion::Minion.register_context(
+              capture: -> { raise "Broken handler" },
+              around:  ->(_value, &block) { block.call }
+            )
+
+            error = assert_raises RuntimeError do
+              ParallelMinion::Minion.new(description: "Test") { 42 }
+            end
+
+            assert_equal "Broken handler", error.message
           end
         end
 

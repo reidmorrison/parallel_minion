@@ -49,12 +49,25 @@ are visible inside the block.
 
 ### What gets carried across the thread boundary
 
-`run` captures three things from the parent thread before spawning, because none of them propagate
-automatically:
+A new thread starts with empty thread local state, so nothing propagates automatically. Four things
+are captured in the calling thread and rebuilt inside the minion:
 
 1. SemanticLogger tags (`capture_tags`)
 2. SemanticLogger named tags (`capture_named_tags`)
 3. ActiveRecord scopes for `Minion.scoped_classes` (`self.class.current_scopes`)
+4. Application context registered via `Minion.register_context` (`capture_contexts`)
+
+The first three are captured in `run`, so they only apply to the threaded path. Contexts are
+captured in `initialize` instead, so that capture always happens in the calling thread, applies to
+both paths, and a handler raising during capture surfaces from `Minion.new` rather than as a task
+failure. `run_in_context` nests one `around` per handler, first registered outermost, and raises if
+a handler never yields rather than letting `#result` return nil for a task that never ran.
+
+Anything **not** in that list is absent inside a minion: `CurrentAttributes`, `ActsAsTenant`,
+`RequestStore`, bare `Thread.current[...]`. That is a fail-open, not just a correctness gap, since
+scoping conditional on such state applies no scope when the state is missing. It is also invisible
+to tests, because the inline path runs in the calling thread where the context is intact. Handlers
+therefore run on the inline path too, so a broken one cannot hide there.
 
 `run_in_scope` rebuilds the scope chain inside the new thread by nesting a `.scoping` block per
 class, since `.scoping` only accepts one class at a time. The thread's `ensure` calls `cleanup`,

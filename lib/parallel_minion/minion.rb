@@ -70,6 +70,61 @@ module ParallelMinion
       @scoped_classes = scoped_classes.dup
     end
 
+    # The registered application context handlers.
+    #
+    # Returns [Array<Array(Proc, Proc)>] the capture and around proc for each handler
+    class << self
+      attr_reader :context_handlers
+    end
+
+    def self.context_handlers=(context_handlers)
+      @context_handlers = context_handlers.dup.freeze
+    end
+
+    # Carry application context that lives in thread local state into every Minion.
+    #
+    # A Minion runs in a new thread, which starts with empty thread local state. Anything
+    # held there is therefore missing inside the Minion: `ActiveSupport::CurrentAttributes`,
+    # `ActsAsTenant.current_tenant`, `RequestStore`, and any `Thread.current[...]` the
+    # application sets. Whatever reads that state inside the Minion sees nothing.
+    #
+    # This is not only a correctness problem. Scoping that is conditional on such state
+    # fails *open* when the state is missing. A multi-tenancy library that applies its
+    # tenant scope only when a current tenant is set applies no scope at all inside a
+    # Minion, so a query that is tenant scoped in the calling thread returns every tenant's
+    # rows in the Minion. Register a handler for any context that scoping depends on.
+    #
+    # Parameters
+    #   :capture [Proc]
+    #     Called in the thread creating the Minion, before it starts. Returns the value to
+    #     carry across, which is passed to `around`.
+    #
+    #   :around [Proc]
+    #     Called in the Minion with the captured value, and *must* yield. The Minion's task
+    #     runs in the supplied block, so re-establish the context around the yield.
+    #
+    # Handlers run in the order they were registered, with the first registered outermost,
+    # and run on both the threaded and the inline path so that both behave identically.
+    #
+    # An exception raised by `capture` propagates out of `Minion.new` in the calling thread,
+    # since a broken handler is a configuration error and must not be reported as a task
+    # failure. An `around` that never yields raises, rather than quietly returning nil.
+    #
+    # Example: acts_as_tenant
+    #   ParallelMinion::Minion.register_context(
+    #     capture: -> { ActsAsTenant.current_tenant },
+    #     around:  ->(tenant, &block) { ActsAsTenant.with_tenant(tenant, &block) }
+    #   )
+    #
+    # Example: Rails Current attributes
+    #   ParallelMinion::Minion.register_context(
+    #     capture: -> { Current.attributes },
+    #     around:  ->(attributes, &block) { Current.set(**attributes, &block) }
+    #   )
+    def self.register_context(capture:, around:)
+      @context_handlers += [[capture, around].freeze]
+    end
+
     # Change the log level for the Started log message.
     #
     # Default: :info
@@ -106,6 +161,7 @@ module ParallelMinion
     self.completed_log_level = :info
     self.enabled             = true
     self.scoped_classes      = []
+    self.context_handlers    = []
 
     # Create a new Minion
     #
@@ -260,7 +316,11 @@ module ParallelMinion
         self.logger = l
       end
 
-      @enabled ? run(&block) : run_inline(&block)
+      # Captured here rather than in `run` so that it always happens in the calling thread,
+      # on both paths, and so a handler that raises does so from `Minion.new`.
+      contexts = capture_contexts
+
+      @enabled ? run(contexts, &block) : run_inline(contexts, &block)
     end
 
     # Returns the result when the thread completes
@@ -352,7 +412,7 @@ module ParallelMinion
 
     # Run the supplied block of code in the current thread.
     # Useful for debugging, testing, and when running in batch environments.
-    def run_inline(&block)
+    def run_inline(contexts, &block)
       logger.public_send(self.class.started_log_level, "Started #{description}")
       logger.measure(
         self.class.completed_log_level,
@@ -361,7 +421,9 @@ module ParallelMinion
         on_exception_level: on_exception_level,
         metric:             metric
       ) do
-        @result = instance_exec(*arguments, &block)
+        # The context is already correct in this thread, but the handlers still run so that
+        # both paths behave identically and a broken handler shows up in either.
+        run_in_context(contexts) { @result = instance_exec(*arguments, &block) }
       end
     rescue Exception => e
       @exception = e
@@ -371,7 +433,7 @@ module ParallelMinion
 
     # rubocop:enable Lint/RescueException
 
-    def run(&block)
+    def run(contexts, &block)
       # Capture tags from current thread
       tags       = capture_tags
       named_tags = capture_named_tags
@@ -388,7 +450,7 @@ module ParallelMinion
             logger.public_send(self.class.started_log_level, "Started #{description}")
             # rubocop:disable Lint/RescueException
             begin
-              proc = proc { run_in_scope(scopes, &block) }
+              proc = proc { run_in_context(contexts) { run_in_scope(scopes, &block) } }
               logger.measure(
                 self.class.completed_log_level,
                 "Completed #{description}",
@@ -432,6 +494,37 @@ module ParallelMinion
     end
 
     # rubocop:enable Lint/RescueException
+
+    # Capture the registered application context in the thread creating the Minion.
+    def capture_contexts
+      self.class.context_handlers.map { |capture, around| [around, capture.call] }
+    end
+
+    # Re-establish the captured application context inside the Minion.
+    #
+    # Each `around` handler wraps a single block, so they are nested one inside the next,
+    # the same way `run_in_scope` nests `.scoping`. The first registered ends up outermost.
+    def run_in_context(contexts, &block)
+      return block.call if contexts.empty?
+
+      reached = false
+      inner   = lambda do
+        reached = true
+        block.call
+      end
+
+      contexts.reverse_each do |around, value|
+        outer = inner
+        inner = -> { around.call(value) { outer.call } }
+      end
+      result = inner.call
+
+      # A handler that forgets to yield would otherwise leave the task silently unrun, with
+      # #result returning nil as though the block had produced it.
+      raise("A ParallelMinion::Minion context handler did not yield, #{description} never ran") unless reached
+
+      result
+    end
 
     def capture_tags
       tags = SemanticLogger.tags
