@@ -35,15 +35,15 @@ sum of both.
 
 ## Documentation
 
-For complete documentation see: http://reidmorrison.github.io/parallel_minion
+For complete documentation see: https://minion.rocketjob.io
 
-* [Guide](http://reidmorrison.github.io/parallel_minion/guide.html), a step by step introduction
-* [Tuning](http://reidmorrison.github.io/parallel_minion/tuning.html), metrics and dashboards for
+* [Guide](https://minion.rocketjob.io/guide.html), a step by step introduction
+* [Tuning](https://minion.rocketjob.io/tuning.html), metrics and dashboards for
   dividing up the work
-* [Rails](http://reidmorrison.github.io/parallel_minion/rails.html), executor, request context and
+* [Rails](https://minion.rocketjob.io/rails.html), executor, request context and
   ActiveRecord scopes
-* [Reference](http://reidmorrison.github.io/parallel_minion/api.html), every option and method
-* [Upgrading](http://reidmorrison.github.io/parallel_minion/upgrading.html), moving from v1 to v2
+* [Reference](https://minion.rocketjob.io/api.html), every option and method
+* [Upgrading](https://minion.rocketjob.io/upgrading.html), moving from v1 to v2
 
 ## When do minions help?
 
