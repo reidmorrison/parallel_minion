@@ -220,6 +220,38 @@ class MinionTest < Minitest::Test
           end
         end
 
+        it "not report completed while the minion is still running" do
+          if enabled
+            minion = ParallelMinion::Minion.new(description: "Test") do
+              sleep 0.5
+              42
+            end
+
+            # Let the minion reach its sleep so that it is blocked, not merely runnable.
+            # A blocked thread is still working, it has not completed.
+            sleep 0.1
+
+            refute_predicate minion, :completed?
+            assert_predicate minion, :working?
+
+            assert_equal 42, minion.result
+
+            assert_predicate minion, :completed?
+            refute_predicate minion, :working?
+          end
+        end
+
+        it "raise exception when the minion terminated before #result was called" do
+          minion = ParallelMinion::Minion.new(description: "Test") { raise "An exception" }
+          # Force #result down the already-completed path, which must still join the thread
+          # to pick up the exception rather than read it unsynchronized.
+          sleep 0.01 while minion.working?
+
+          assert_raises RuntimeError do
+            minion.result
+          end
+        end
+
         it "make description instance variable available" do
           minion = ParallelMinion::Minion.new(description: "Test") do
             description

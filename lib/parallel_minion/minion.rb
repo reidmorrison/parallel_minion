@@ -271,6 +271,13 @@ module ParallelMinion
             return
           end
         end
+      elsif enabled?
+        # The minion has already terminated, but the join is still required since it is the
+        # only thing that publishes `@result` and `@exception` to this thread. Without it,
+        # Ruby implementations with a relaxed memory model (JRuby, TruffleRuby) can read
+        # stale values here, silently dropping an exception raised inside the minion.
+        # Joining an already dead thread returns immediately.
+        @thread.join
       end
 
       # Return the exception, if any, otherwise the task result
@@ -283,8 +290,12 @@ module ParallelMinion
     end
 
     # Returns [Boolean] whether the minion has completed working on the task
+    #
+    # Note: Do not use `Thread#stop?` here. It returns true when the thread is dead _or_
+    #       sleeping, so a minion blocked on I/O, a mutex, or a database call would be
+    #       reported as completed while it is still running.
     def completed?
-      enabled? ? @thread.stop? : true
+      enabled? ? !@thread.alive? : true
     end
 
     # Returns [Boolean] whether the minion failed while performing the assigned task
