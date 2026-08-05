@@ -1,4 +1,4 @@
-require_relative "./test_helper"
+require_relative "test_helper"
 
 # Test ParallelMinion standalone without Rails
 # Run this test standalone to verify it has no Rails dependencies
@@ -18,11 +18,13 @@ class MinionTest < Minitest::Test
 
         it "without parameters" do
           minion = ParallelMinion::Minion.new { 196 }
+
           assert_equal 196, minion.result
         end
 
         it "with a description" do
           minion = ParallelMinion::Minion.new(description: "Test") { 197 }
+
           assert_equal 197, minion.result
         end
 
@@ -31,6 +33,7 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(p1, description: "Test") do |v|
             v[:name]
           end
+
           assert_equal 198, minion.result
         end
 
@@ -59,6 +62,7 @@ class MinionTest < Minitest::Test
             h[:value] = 123
             456
           end
+
           assert_equal 456, minion.result
           assert_equal 123, hash[:value]
           assert_equal 321, value
@@ -73,6 +77,7 @@ class MinionTest < Minitest::Test
               logger.tags.last
             end
           end
+
           assert_equal "TAG", minion.result
         end
 
@@ -85,6 +90,7 @@ class MinionTest < Minitest::Test
               SemanticLogger.named_tags
             end
           end
+
           assert_equal({tag: "TAG"}, minion.result)
         end
 
@@ -117,6 +123,7 @@ class MinionTest < Minitest::Test
           messages = minion.logger.events
           name     = enabled ? "Minion" : "Inline"
           count    = enabled ? 3 : 2
+
           assert_equal count, messages.count, messages
           assert_equal "Started Test", messages[0].message
           assert_equal :info, messages[0].level
@@ -155,6 +162,7 @@ class MinionTest < Minitest::Test
           messages = minion.logger.events
           name     = enabled ? "Minion" : "Inline"
           count    = enabled ? 3 : 2
+
           assert_equal count, messages.count, messages
           assert_equal "Started Test", messages[0].message
           assert_equal :info, messages[0].level
@@ -162,7 +170,7 @@ class MinionTest < Minitest::Test
 
           assert_equal "Completed Test -- Exception: RuntimeError: Oh No", messages[1].message
           assert_equal :error, messages[1].level
-          refute messages[1].backtrace.empty?
+          refute_empty messages[1].backtrace
           assert_equal "class/method", messages[1].metric
           assert_equal name, messages[1].name
 
@@ -180,6 +188,7 @@ class MinionTest < Minitest::Test
             # Each Minion returns its index in the collection
             ParallelMinion::Minion.new(i, description: "Minion:#{i}") { |counter| counter }
           end
+
           assert_equal 10, minions.count
           # Fetch the result from each Minion
           minions.each_with_index do |minion, index|
@@ -190,6 +199,7 @@ class MinionTest < Minitest::Test
         it "timeout" do
           if enabled
             minion = ParallelMinion::Minion.new(description: "Test", timeout: 100) { sleep 1 }
+
             assert_nil minion.result
           end
         end
@@ -197,10 +207,12 @@ class MinionTest < Minitest::Test
         it "timeout and terminate thread with Exception" do
           if enabled
             minion = ParallelMinion::Minion.new(description: "Test", timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
+
             assert_nil minion.result
             # Give time for thread to terminate
             sleep 0.1
-            assert_equal Timeout::Error, minion.exception.class
+
+            assert_instance_of Timeout::Error, minion.exception
             assert_equal false, minion.working?
             assert_equal true, minion.completed?
             assert_equal true, minion.failed?
@@ -212,6 +224,7 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(description: "Test") do
             description
           end
+
           assert_equal "Test", minion.result
         end
 
@@ -219,6 +232,7 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(description: "Test", timeout: 1000) do
             timeout
           end
+
           assert_equal 1000, minion.result
         end
 
@@ -226,6 +240,7 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(description: "Test") do
             enabled?
           end
+
           assert_equal enabled, minion.result
         end
 
@@ -233,7 +248,8 @@ class MinionTest < Minitest::Test
           minion = ParallelMinion::Minion.new(1, "data", 14.1, description: "Test") do |num, _str, float|
             num + float
           end
-          assert_equal 15.1, minion.result
+
+          assert_in_delta(15.1, minion.result)
           assert_equal [1, "data", 14.1], minion.arguments
         end
       end

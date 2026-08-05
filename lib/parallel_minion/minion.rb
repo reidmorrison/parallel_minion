@@ -238,7 +238,7 @@ module ParallelMinion
       @enabled            = enabled
       @on_timeout         = on_timeout
 
-      @wait_metric        = (wait_metric || "#{metric}/wait") if @metric
+      @wait_metric        = wait_metric || "#{metric}/wait" if @metric
 
       # When minion is disabled make it obvious in the logs by setting the name to 'Inline' instead of 'Minion'.
       unless @enabled
