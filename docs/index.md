@@ -49,10 +49,31 @@ or setting the appropriate command line option:
 thread.pool.enabled=true
 ```
 
-- Rails 4.0, 4.1 users need to apply a patch in order to fix a performance
-problem in the Active Record connection pooling logic. Include
-the following [Code](https://gist.github.com/reidmorrison/e5e6b0bf01d6837624d4)
-before Rails starts. A good place is in application.rb
+### Upgrading to v2.0
+
+Most applications need no changes. Two behaviour changes are worth knowing about, and one
+new setting is worth applying deliberately.
+
+**`#completed?` no longer reports a blocked minion as finished.** It previously returned true
+for a thread that was dead *or sleeping*, so a minion waiting on a database call or an HTTP
+request looked completed while it was still running. It is now the exact opposite of
+`#working?`. Code that treated `completed?` as "safe to read the result" was reading it too
+early, most visibly in the pattern `use(minion.result) if minion.completed? && !minion.failed?`.
+
+**Under Rails, minions now run inside the application executor.** The railtie configures this,
+so reloading is held off while a minion runs and ActiveRecord connections are returned the way
+Rails does it. See [The Rails executor](api.html#the-rails-executor) to opt out.
+
+**Register any context your scoping depends on.** Thread local state has never crossed into a
+minion, and libraries whose scope is conditional on it fail *open*, silently returning rows
+they should not. v2 adds `register_context` to carry it across. If the application uses
+`ActiveSupport::CurrentAttributes`, `ActsAsTenant`, `RequestStore`, or its own
+`Thread.current[...]` for anything a query scopes on, read
+[Carrying application context into a minion](api.html#carrying-application-context-into-a-minion)
+and register a handler.
+
+Also new: `#timed_out?` distinguishes a `nil` returned because the minion timed out from a
+`nil` the minion itself produced. See [Detecting a timeout](api.html#detecting-a-timeout).
 
 ### Dependencies
 
@@ -63,4 +84,6 @@ and built-in benchmarking api's
 
 ### Compatibility
 
-ParallelMinion works with Ruby 1.9, Ruby 2.0, Ruby 2.1, JRuby 1.7
+ParallelMinion requires Ruby 3.2 or greater, and is tested against Ruby 3.2, 3.3, 3.4 and 4.0.
+
+Rails is optional. When present, Rails 7.2, 8.0 and 8.1 are tested.
