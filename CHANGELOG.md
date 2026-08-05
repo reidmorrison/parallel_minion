@@ -17,6 +17,8 @@ This project adheres to [Semantic Versioning](http://semver.org/).
   minion thread gets the framework's own semantics: reloading is held off while it runs, and
   ActiveRecord connections and the query cache are returned the way Rails does it. Set
   `ParallelMinion::Minion.executor = nil` after initialization to opt out.
+- Ruby 3.2 is now the minimum supported runtime, up from 2.5 in v1.4. Earlier versions are end of
+  life and are no longer tested. Ruby 3.2, 3.3, 3.4 and 4.0 are tested, on CRuby and JRuby.
 - Rails 5.1 through 7.1 are no longer tested. Rails 7.2, 8.0 and 8.1 are.
 
 ### Added

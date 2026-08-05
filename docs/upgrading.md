@@ -12,8 +12,20 @@ layout: default
 
 ## Upgrading to v2.0
 
-Most applications need no code changes. Two behaviours changed, and one new setting is worth
-applying deliberately.
+Most applications need no code changes. The minimum Ruby version has gone up, two behaviours
+changed, and one new setting is worth applying deliberately.
+
+### Ruby 3.2 is now the minimum
+
+v1.4 ran on Ruby 2.5 and later. v2.0 requires **Ruby 3.2 or greater**.
+
+**Who is affected.** Anyone on Ruby 3.1 or earlier. Bundler will refuse to install v2.0 rather
+than failing at runtime, so this surfaces immediately.
+
+**What to do.** Upgrade Ruby to 3.2 or later, or stay on v1.4. Every Ruby before 3.2 is now past
+its end of life and no longer receives security fixes.
+
+Both CRuby and JRuby are tested, on Ruby 3.2, 3.3, 3.4 and 4.0.
 
 ### `#completed?` no longer reports a blocked minion as finished
 
@@ -77,8 +89,7 @@ block runs inline, where the context is intact. See
 
 ### Rails 5.1 through 7.1 are no longer tested
 
-Rails 7.2, 8.0 and 8.1 are tested. Ruby 3.2 or greater is required, which was already the case in
-v1.4.
+Rails 7.2, 8.0 and 8.1 are tested. Rails remains optional.
 
 ### New in v2.0
 
