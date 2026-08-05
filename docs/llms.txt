@@ -1,0 +1,28 @@
+# Parallel Minion
+
+> Parallel Minion runs a block of Ruby code on another thread and hands back its result when the caller asks for it. Wrapping a slow step in a "minion" lets independent steps overlap, so elapsed time approaches that of the slowest single step rather than the sum of all of them. Exceptions raised inside the block are re-raised in the calling thread, and a timeout lets the caller stop waiting and return a partial answer.
+
+Key facts:
+
+- Install with `gem install parallel_minion` or `gem "parallel_minion"` in a Gemfile. Requires Ruby 3.2 or later.
+- The whole public interface is one class, `ParallelMinion::Minion`. `Minion.new` starts the block immediately, on its own thread; `#result` waits for it and returns its value.
+- Minions help with work that **waits on something**: a database query, an HTTP call, an external service. CRuby releases the GVL during I/O, so those waits genuinely overlap. Pure Ruby computation does not speed up on CRuby, since that holds the GVL. JRuby and TruffleRuby have no GVL.
+- The block runs under `instance_exec`, so `self` inside it is the Minion. Local variables from the enclosing scope are still visible, but a method call on the enclosing object raises `NameError` and an instance variable reads as `nil`. Pass data in as arguments to `Minion.new` instead.
+- A new thread starts with empty thread local state. Under Rails, register a handler with `Minion.register_context(capture:, around:)` for anything scoping depends on (`ActiveSupport::CurrentAttributes`, `ActsAsTenant`, `RequestStore`). Without it, conditional scoping fails **open** inside a minion.
+- Rails is optional. When present, a railtie runs each minion inside `Rails.application.executor` and copies ActiveRecord scopes for the classes in `Minion.scoped_classes`.
+- Human-readable documentation lives at https://minion.rocketjob.io. The links below point at the raw markdown sources of the same pages.
+- The complete documentation concatenated into a single file: https://minion.rocketjob.io/llms-full.txt
+- Source code: https://github.com/reidmorrison/parallel_minion
+
+## Documentation
+
+- [Introduction](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/index.md): What a minion is, when parallelism actually helps under the GVL, installation, and a first working example.
+- [Guide](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/guide.md): The step by step manual, building from one minion to several: collecting results, passing arguments, exception handling, timeouts, `#timed_out?`, `:on_timeout`, a worked before/after example, and running with minions disabled.
+- [Tuning](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/tuning.md): Measuring before parallelizing, naming a `:metric` on each minion, reading the duration and wait metrics on a dashboard, and running experiments to work out how to divide up the work so no single minion sets the floor.
+- [Rails](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/rails.md): Rails integration: setup, carrying request context into a minion with `register_context`, ActiveRecord scopes, database connections, the Rails executor, disabling minions, and testing.
+- [Reference](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/api.md): Every constructor option, instance method, and class setting, plus what is logged.
+
+## Optional
+
+- [Upgrading](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/docs/upgrading.md): Moving from v1.4 to v2.0: the Ruby 3.2 minimum, the `#completed?` change, the Rails executor, and registering context handlers.
+- [README](https://raw.githubusercontent.com/reidmorrison/parallel_minion/main/README.md): Project overview, compatibility, and installation.
