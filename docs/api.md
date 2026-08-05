@@ -38,6 +38,23 @@ The _last_ parameter passed to the initializer must be a hash consisting of:
           then :timeout is ignored and assumed to be Minion::INFINITE
           since the code is run in the calling thread when the Minion is created
 
+- `:metric` `[String]`
+    - Name of the metric to forward to Semantic Logger when measuring the minion execution time
+    - Example: `inquiry/address_cleansing`
+    - Supplying a metric also generates a second metric with `/wait` appended, for example
+      `inquiry/address_cleansing/wait`, which records how long the calling thread was blocked
+      in `#result` waiting for the minion to complete
+    - The wait is only recorded when the minion is still running at the time its result is
+      requested, so a minion that has already completed records no wait at all
+    - Default: none, no metrics are generated
+    - See [How to implement](implement.html) for using these metrics to tune how work is
+      divided among minions
+
+- `:wait_metric` `[String]`
+    - Override the name of the wait metric described above
+    - Only applies when `:metric` has been supplied
+    - Default: `"#{metric}/wait"`
+
 - `:enabled` `[Boolean]`
     - Whether the minion should run in a separate thread
     - Not recommended in Production, but is useful for debugging purposes
