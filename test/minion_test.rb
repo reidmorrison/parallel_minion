@@ -201,6 +201,31 @@ class MinionTest < Minitest::Test
             minion = ParallelMinion::Minion.new(description: "Test", timeout: 100) { sleep 1 }
 
             assert_nil minion.result
+            assert_predicate minion, :timed_out?
+          end
+        end
+
+        it "distinguish a nil result from a timeout" do
+          minion = ParallelMinion::Minion.new(description: "Test", timeout: 1000) { nil }
+
+          assert_nil minion.result
+          refute_predicate minion, :timed_out?
+        end
+
+        it "clear timed_out? once the minion completes" do
+          if enabled
+            minion = ParallelMinion::Minion.new(description: "Test", timeout: 100) do
+              sleep 0.5
+              42
+            end
+
+            assert_nil minion.result
+            assert_predicate minion, :timed_out?
+
+            sleep 0.01 while minion.working?
+
+            assert_equal 42, minion.result
+            refute_predicate minion, :timed_out?
           end
         end
 
@@ -209,6 +234,7 @@ class MinionTest < Minitest::Test
             minion = ParallelMinion::Minion.new(description: "Test", timeout: 100, on_timeout: Timeout::Error) { sleep 1 }
 
             assert_nil minion.result
+            assert_predicate minion, :timed_out?
             # Give time for thread to terminate
             sleep 0.1
 
@@ -217,6 +243,9 @@ class MinionTest < Minitest::Test
             assert_predicate minion, :completed?
             assert_predicate minion, :failed?
             assert_equal 0, minion.time_left
+            # The ensure that returns database connections to the pool must have run to
+            # completion despite the asynchronous Thread#raise that terminated the minion
+            refute_nil minion.duration
           end
         end
 
@@ -249,6 +278,22 @@ class MinionTest < Minitest::Test
 
           assert_raises RuntimeError do
             minion.result
+          end
+        end
+
+        it "record a failure during cleanup rather than losing it" do
+          if enabled
+            minion = ParallelMinion::Minion.new(description: "Test") { 42 }
+
+            assert_equal 42, minion.result
+
+            # Stand in for an interrupt delivered inside cleanup, which is masked until the
+            # cleanup completes and then surfaces out of the same rescue.
+            minion.stub(:start_time, "not a time") do
+              minion.send(:cleanup)
+            end
+
+            assert_instance_of TypeError, minion.exception
           end
         end
 

@@ -57,9 +57,14 @@ automatically:
 3. ActiveRecord scopes for `Minion.scoped_classes` (`self.class.current_scopes`)
 
 `run_in_scope` rebuilds the scope chain inside the new thread by nesting a `.scoping` block per
-class, since `.scoping` only accepts one class at a time. The thread's `ensure` returns AR
-connections to the pool via `connection_handler.clear_active_connections!` (the non-deprecated form
-as of Rails 7).
+class, since `.scoping` only accepts one class at a time. The thread's `ensure` calls `cleanup`,
+which returns AR connections to the pool via `connection_handler.clear_active_connections!` (the
+non-deprecated form as of Rails 7).
+
+`cleanup` runs under `Thread.handle_interrupt(Exception => :never)`. An `ensure` is a valid
+interrupt checkpoint, so the `Thread#raise` behind `:on_timeout` can otherwise abort cleanup
+partway and hand a connection back to the pool mid-transaction. Anything that ends up masked
+surfaces from `cleanup`'s own `rescue` and is recorded in `@exception`.
 
 ### Error and timeout semantics live in `#result`
 
@@ -71,6 +76,10 @@ Lint/RescueException`) so nothing escapes the thread unreported. Do not narrow t
 `:timeout` bounds how long **`#result` waits**, not how long the minion runs. A timed-out `#result`
 returns `nil` and the minion keeps going, unless `:on_timeout` is set, in which case that exception
 class is raised *on the worker thread* to terminate it.
+
+That `nil` is ambiguous, since a minion may return `nil` itself, so `#result` also sets
+`timed_out`, cleared again by any later call that does get a result. Callers deciding anything on
+the result need `#timed_out?` or `:on_timeout`, otherwise a slow minion reads as a real answer.
 
 ### ActiveRecord and Rails are optional
 

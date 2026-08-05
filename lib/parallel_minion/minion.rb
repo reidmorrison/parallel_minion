@@ -24,6 +24,14 @@ module ParallelMinion
 
     attr_reader :on_timeout, :log_exception, :start_time, :on_exception_level
 
+    # Returns [Boolean] whether the last call to #result gave up waiting for the minion.
+    #
+    # Distinguishes a nil returned by #result because the minion timed out from a nil that
+    # the minion itself returned. Cleared when a subsequent #result does not time out.
+    attr_reader :timed_out
+
+    alias timed_out? timed_out
+
     # Give an infinite amount of time to wait for a Minion to complete a task
     INFINITE = 0
 
@@ -144,6 +152,10 @@ module ParallelMinion
     #     - If :enabled is false, or ParallelMinion::Minion.enabled is false,
     #       then :timeout is ignored and assumed to be Minion::INFINITE
     #       since the code is run in the calling thread when the Minion is created
+    #     - On timeout #result returns nil, which is indistinguishable from a minion that
+    #       returned nil. Use #timed_out? to tell them apart, or set :on_timeout.
+    #       Code that treats the nil as an answer fails open, so a minion computing a
+    #       security or risk decision must check one of the two.
     #
     #   :on_timeout [Exception]
     #     The class to raise on the minion when the minion times out.
@@ -229,6 +241,7 @@ module ParallelMinion
 
       @start_time         = Time.now
       @exception          = nil
+      @timed_out          = false
       @arguments          = arguments
       @timeout            = timeout.to_f
       @description        = description.to_s
@@ -254,7 +267,11 @@ module ParallelMinion
     # Returns nil if the thread has not yet completed
     # Raises any unhandled exception in the thread, if any
     #
-    # Note: The result of any thread cannot be nil
+    # Note:
+    #   A nil result is ambiguous on its own, since it is also what a minion that has not
+    #   completed within :timeout returns. Check `#timed_out?` to tell the two apart.
+    #   Treating a timed out nil as an answer fails open when the minion is computing a
+    #   security decision, so check `#timed_out?` or set :on_timeout for that work.
     def result
       # Return nil if Minion is still working and has time left to finish
       if working?
@@ -266,6 +283,7 @@ module ParallelMinion
           metric:       wait_metric
         ) do
           if @thread.join(ms.nil? ? nil : ms / 1000).nil?
+            @timed_out = true
             @thread.raise(@on_timeout.new("Minion: #{description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for: #{description}")
             return
@@ -279,6 +297,8 @@ module ParallelMinion
         # Joining an already dead thread returns immediately.
         @thread.join
       end
+
+      @timed_out = false
 
       # Return the exception, if any, otherwise the task result
       exception.nil? ? @result : Kernel.raise(exception)
@@ -381,15 +401,37 @@ module ParallelMinion
               @exception = e
               nil
             ensure
-              @duration = Time.now - start_time
-              # Return any database connections used by this thread back to the pool
-              ActiveRecord::Base.connection_handler.clear_active_connections! if defined?(ActiveRecord::Base)
+              cleanup
             end
             # rubocop:enable Lint/RescueException
           end
         end
       end
     end
+
+    # rubocop:disable Lint/RescueException
+
+    # Release the resources held by the minion thread once its task has ended.
+    #
+    # Runs with asynchronous interrupts masked. `:on_timeout` terminates a minion with
+    # `Thread#raise`, which fires at the next interrupt checkpoint, and an unguarded `ensure`
+    # is itself a valid checkpoint. An interrupt landing here would abort cleanup partway,
+    # returning an ActiveRecord connection to the pool while its transaction is still open,
+    # for the next request that checks it out to inherit.
+    def cleanup
+      Thread.handle_interrupt(Exception => :never) do
+        @duration = Time.now - start_time
+        # Return any database connections used by this thread back to the pool
+        ActiveRecord::Base.connection_handler.clear_active_connections! if defined?(ActiveRecord::Base)
+      end
+    rescue Exception => e
+      # A masked interrupt is delivered once the mask ends, and cleanup can fail on its own.
+      # Either way record it as the minion's exception rather than letting it escape the
+      # thread unreported, without clobbering an exception raised by the block itself.
+      @exception ||= e
+    end
+
+    # rubocop:enable Lint/RescueException
 
     def capture_tags
       tags = SemanticLogger.tags

@@ -37,6 +37,9 @@ The _last_ parameter passed to the initializer must be a hash consisting of:
         - If `:enabled` is false, or ParallelMinion::Minion.enabled is false,
           then :timeout is ignored and assumed to be Minion::INFINITE
           since the code is run in the calling thread when the Minion is created
+        - On timeout `#result` returns `nil`, which is indistinguishable from a minion
+          that returned `nil` of its own accord. See
+          [Detecting a timeout](#detecting-a-timeout) below
 
 - `:metric` `[String]`
     - Name of the metric to forward to Semantic Logger when measuring the minion execution time
@@ -89,6 +92,29 @@ ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in pa
   MyTable.where('created_at <= ?', date).count
 end
 ```
+
+### Detecting a timeout
+
+When a minion does not finish within `:timeout`, `#result` gives up waiting and returns `nil`.
+That `nil` says nothing about the minion, which is still running, and it is the same `nil` a
+minion returns when its block legitimately produced no answer.
+
+Use `#timed_out?` to tell them apart. It reports whether the most recent call to `#result` gave
+up waiting, and is cleared once a later call does get a result:
+
+```ruby
+minion = ParallelMinion::Minion.new(order, description: 'Risk score', timeout: 500) do |order|
+  RiskEngine.score(order)
+end
+
+score = minion.result
+raise 'Risk engine too slow' if minion.timed_out?
+```
+
+This matters whenever the minion computes something a decision depends on. Code along the lines
+of `score = minion.result.to_i` silently turns a timeout into a score of zero, so the check is
+skipped at exactly the moment the system is under load and the check is most needed. Either test
+`#timed_out?`, or set `:on_timeout` so the wait raises instead of returning.
 
 ### Disabling Minions
 
