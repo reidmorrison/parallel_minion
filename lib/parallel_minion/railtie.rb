@@ -26,5 +26,15 @@ module ParallelMinion # :nodoc:
     #     end
     #   end
     config.parallel_minion = ::ParallelMinion::Minion
+
+    # Run every Minion inside the application executor, so that the thread it runs in gets
+    # the same reloading and ActiveRecord connection handling as the request cycle.
+    #
+    # Assigned here rather than at load time because the executor only exists once the
+    # application has been built. Set `ParallelMinion::Minion.executor = nil` afterwards to
+    # opt out.
+    initializer "parallel_minion.executor" do |app|
+      ::ParallelMinion::Minion.executor = app.executor
+    end
   end
 end

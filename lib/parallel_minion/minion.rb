@@ -57,6 +57,19 @@ module ParallelMinion
       @enabled
     end
 
+    # The Rails executor to run every Minion in, or nil to run without one.
+    #
+    # A Minion runs outside the request cycle, in a thread the framework knows nothing
+    # about. The executor is what gives that thread Rails' own semantics: reloading is held
+    # off for the duration, and ActiveRecord connections and the query cache are returned
+    # when it finishes.
+    #
+    # Set automatically to the application executor by the railtie, so under Rails there is
+    # nothing to configure. Assign nil to opt out.
+    class << self
+      attr_accessor :executor
+    end
+
     # The list of classes for which the current scope must be copied into the
     # new Minion (Thread)
     #
@@ -162,6 +175,7 @@ module ParallelMinion
     self.enabled             = true
     self.scoped_classes      = []
     self.context_handlers    = []
+    self.executor            = nil
 
     # Create a new Minion
     #
@@ -342,7 +356,7 @@ module ParallelMinion
           min_duration: 0.01,
           metric:       wait_metric
         ) do
-          if @thread.join(ms.nil? ? nil : ms / 1000).nil?
+          if permit_concurrent_loads { @thread.join(ms.nil? ? nil : ms / 1000) }.nil?
             @timed_out = true
             @thread.raise(@on_timeout.new("Minion: #{description} timed out")) if @on_timeout
             logger.warn("Timed out waiting for: #{description}")
@@ -355,7 +369,7 @@ module ParallelMinion
         # Ruby implementations with a relaxed memory model (JRuby, TruffleRuby) can read
         # stale values here, silently dropping an exception raised inside the minion.
         # Joining an already dead thread returns immediately.
-        @thread.join
+        permit_concurrent_loads { @thread.join }
       end
 
       @timed_out = false
@@ -400,10 +414,14 @@ module ParallelMinion
 
     # Returns the current scopes for each of the models for which scopes will be
     # copied to the Minions
-    if defined?(ActiveRecord)
-      def self.current_scopes
-        scoped_classes.collect(&:all)
-      end
+    #
+    # Defined unconditionally. Guarding the definition with `defined?(ActiveRecord)` decided
+    # at load time whether the method exists, while its caller tests `defined?
+    # (ActiveRecord::Base)` at run time. Whenever ActiveRecord finished loading after this
+    # class did, the caller reached a method that was never defined. Harmless without
+    # ActiveRecord, since `scoped_classes` is then empty.
+    def self.current_scopes
+      scoped_classes.collect(&:all)
     end
 
     private
@@ -450,7 +468,7 @@ module ParallelMinion
             logger.public_send(self.class.started_log_level, "Started #{description}")
             # rubocop:disable Lint/RescueException
             begin
-              proc = proc { run_in_context(contexts) { run_in_scope(scopes, &block) } }
+              proc = proc { with_executor { run_in_context(contexts) { run_in_scope(scopes, &block) } } }
               logger.measure(
                 self.class.completed_log_level,
                 "Completed #{description}",
@@ -494,6 +512,36 @@ module ParallelMinion
     end
 
     # rubocop:enable Lint/RescueException
+
+    # Run the Minion inside the Rails executor, when one has been configured.
+    #
+    # Only the threaded path is wrapped. Inline Minions run in the caller's thread, which
+    # already has whatever execution context the caller established, and wrapping it would
+    # reset that thread's `CurrentAttributes` out from under the caller when the Minion
+    # finishes.
+    #
+    # The executor has to be the outermost wrapper around the task. It resets
+    # `CurrentAttributes` both when it runs and when it completes, so context handlers must
+    # run inside it or their values are wiped before the task ever sees them.
+    def with_executor(&block)
+      executor = self.class.executor
+      executor ? executor.wrap(&block) : block.call
+    end
+
+    # Wait for the Minion without holding Rails back from reloading in the meantime.
+    #
+    # The waiting thread is usually inside the executor itself, holding the interlock, and
+    # cannot release it until the Minion it is blocked on returns. A Minion that autoloads
+    # in that window deadlocks against it.
+    #
+    # Only relevant when the Minion runs in the executor to begin with. This is a no-op as
+    # of Rails 8.1, where the loading interlock went away with the move to Zeitwerk, and
+    # does real work on the Rails versions before it.
+    def permit_concurrent_loads(&block)
+      return block.call unless self.class.executor && defined?(ActiveSupport::Dependencies)
+
+      ActiveSupport::Dependencies.interlock.permit_concurrent_loads(&block)
+    end
 
     # Capture the registered application context in the thread creating the Minion.
     def capture_contexts

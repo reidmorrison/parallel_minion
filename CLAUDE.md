@@ -79,6 +79,25 @@ interrupt checkpoint, so the `Thread#raise` behind `:on_timeout` can otherwise a
 partway and hand a connection back to the pool mid-transaction. Anything that ends up masked
 surfaces from `cleanup`'s own `rescue` and is recorded in `@exception`.
 
+### The Rails executor wraps the threaded path
+
+`Minion.executor` is assigned `Rails.application.executor` by a railtie initializer, and `run`
+wraps the thread body in it. That is what gives a thread Rails knows nothing about the framework's
+own semantics: reloading held off for the duration, connections and query cache returned at the end.
+
+Two ordering constraints, both load-bearing:
+
+- The executor must be **outside** `run_in_context`. It calls `CurrentAttributes.clear_all` from
+  both its run and complete hooks, so contexts applied outside it are wiped before the task runs.
+  `test/minion_executor_test.rb` locks this in and fails if the nesting is swapped.
+- `#result` waits inside `interlock.permit_concurrent_loads`. The waiting thread is usually in the
+  executor itself holding the interlock, and a minion that autoloads while the caller blocks on it
+  deadlocks. Real on Rails 7.2, a no-op from 8.1 where Zeitwerk retired the loading interlock.
+
+Only the threaded path is wrapped. Inline minions run in the caller's thread, which already has the
+caller's execution context, and wrapping it would reset that thread's `CurrentAttributes` when the
+minion finished. This is a deliberate exception to the mirror rule above.
+
 ### Error and timeout semantics live in `#result`
 
 The worker thread stores its exception rather than raising; `#result` re-raises it in the caller's
@@ -119,6 +138,10 @@ This split is mirrored in the tests, and should be preserved:
   it looks harmless on CRuby, where the GVL hides the race, and breaks on JRuby/TruffleRuby.
 - **`completed?` uses `!alive?`, deliberately not `Thread#stop?`.** `stop?` is true for a dead *or
   sleeping* thread, so it reports a minion blocked on I/O as completed.
+- **Do not guard a method definition on `defined?(SomeGem)`.** That decides at load time whether
+  the method exists, while callers test `defined?` at run time. `self.current_scopes` was declared
+  inside `if defined?(ActiveRecord)` and vanished whenever ActiveRecord finished loading after this
+  class did, so every threaded minion raised `NoMethodError`. Define the method and guard the call.
 - `.rubocop.yml` softens several metric limits on purpose. Prefer a targeted, commented
   `rubocop:disable` or a config change over contorting code, which is the pattern already in use.
 - Running `bundle exec` can rewrite the `gemfiles/*.gemfile` files as a side effect. Check `git

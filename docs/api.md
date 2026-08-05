@@ -151,6 +151,30 @@ Notes:
 - ActiveRecord scopes are handled separately by `ParallelMinion::Minion.scoped_classes`, which
   copies a relation into the minion rather than re-establishing thread local state
 
+### The Rails executor
+
+Under Rails every minion runs inside the application executor, which the railtie configures
+automatically. A minion runs outside the request cycle in a thread the framework knows nothing
+about, and the executor is what gives that thread Rails' own semantics: reloading is held off
+while the minion runs, and ActiveRecord connections and the query cache are returned when it
+finishes.
+
+Nothing needs configuring. To opt out, clear the setting after initialization:
+
+```ruby
+ParallelMinion::Minion.executor = nil
+```
+
+Notes:
+
+- Only minions running in their own thread are wrapped. An inline minion runs in the calling
+  thread, which already has the caller's execution context
+- Context handlers registered with `register_context` run *inside* the executor, so Rails
+  `Current` attributes carried across survive the reset the executor performs when it starts
+- `#result` waits inside `ActiveSupport::Dependencies.interlock.permit_concurrent_loads`, so a
+  minion that autoloads while the calling thread is blocked on it cannot deadlock against it.
+  This matters on Rails 7.2; from Rails 8.1 the loading interlock no longer exists
+
 ### Detecting a timeout
 
 When a minion does not finish within `:timeout`, `#result` gives up waiting and returns `nil`.
