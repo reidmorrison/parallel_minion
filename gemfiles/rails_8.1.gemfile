@@ -2,13 +2,16 @@
 
 source "https://rubygems.org"
 
-gem "rake"
 gem "amazing_print"
 gem "appraisal"
+gem "rake"
+gem "rubocop"
+gem "rubocop-minitest"
+gem "rubocop-rake"
 gem "activerecord", "~> 8.1.1"
-gem "sqlite3", ">= 1.4", platform: :ruby
 gem "base64"
 gem "bigdecimal"
 gem "minitest", ">= 5.1", "< 6"
+gem "sqlite3", ">= 1.4", platform: :ruby
 
 gemspec path: "../"

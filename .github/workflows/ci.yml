@@ -65,3 +65,18 @@ jobs:
 
       - name: Run Tests
         run: bundle exec rake test
+
+  rubocop:
+    name: RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          # runs 'bundle install' and caches installed gems automatically
+          bundler-cache: true
+
+      - name: Run RuboCop
+        run: bundle exec rake rubocop

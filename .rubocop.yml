@@ -31,6 +31,10 @@ Layout/HashAlignment:
   EnforcedHashRocketStyle: table
   EnforcedColonStyle: table
 
+# Soften limits: tests assert multiple related fields on a single log/state check
+Minitest/MultipleAssertions:
+  Max: 15
+
 # Soften limits
 Layout/LineLength:
   Max: 128

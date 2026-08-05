@@ -299,7 +299,7 @@ module ParallelMinion
       return nil if timeout.zero? || (timeout == -1)
 
       duration = timeout - ((Time.now - start_time) * 1000)
-      duration <= 0 ? 0 : duration
+      [duration, 0].max
     end
 
     # Returns [Boolean] whether this minion is enabled to run in a separate thread
@@ -348,11 +348,8 @@ module ParallelMinion
 
     def run(&block)
       # Capture tags from current thread
-      tags = SemanticLogger.tags
-      tags = tags.nil? || tags.empty? ? nil : tags.dup
-
-      named_tags = SemanticLogger.named_tags
-      named_tags = named_tags.nil? || named_tags.empty? ? nil : named_tags.dup
+      tags       = capture_tags
+      named_tags = capture_named_tags
 
       # Captures scopes from current thread. Only applicable for AR models
       scopes     = self.class.current_scopes if defined?(ActiveRecord::Base)
@@ -387,6 +384,16 @@ module ParallelMinion
           end
         end
       end
+    end
+
+    def capture_tags
+      tags = SemanticLogger.tags
+      tags.nil? || tags.empty? ? nil : tags.dup
+    end
+
+    def capture_named_tags
+      named_tags = SemanticLogger.named_tags
+      named_tags.nil? || named_tags.empty? ? nil : named_tags.dup
     end
 
     def run_in_scope(scopes, &block)

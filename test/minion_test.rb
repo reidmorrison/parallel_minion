@@ -213,9 +213,9 @@ class MinionTest < Minitest::Test
             sleep 0.1
 
             assert_instance_of Timeout::Error, minion.exception
-            assert_equal false, minion.working?
-            assert_equal true, minion.completed?
-            assert_equal true, minion.failed?
+            refute_predicate minion, :working?
+            assert_predicate minion, :completed?
+            assert_predicate minion, :failed?
             assert_equal 0, minion.time_left
           end
         end
