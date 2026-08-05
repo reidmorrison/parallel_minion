@@ -49,17 +49,54 @@ are visible inside the block.
 
 ### What gets carried across the thread boundary
 
-`run` captures three things from the parent thread before spawning, because none of them propagate
-automatically:
+A new thread starts with empty thread local state, so nothing propagates automatically. Four things
+are captured in the calling thread and rebuilt inside the minion:
 
 1. SemanticLogger tags (`capture_tags`)
 2. SemanticLogger named tags (`capture_named_tags`)
 3. ActiveRecord scopes for `Minion.scoped_classes` (`self.class.current_scopes`)
+4. Application context registered via `Minion.register_context` (`capture_contexts`)
+
+The first three are captured in `run`, so they only apply to the threaded path. Contexts are
+captured in `initialize` instead, so that capture always happens in the calling thread, applies to
+both paths, and a handler raising during capture surfaces from `Minion.new` rather than as a task
+failure. `run_in_context` nests one `around` per handler, first registered outermost, and raises if
+a handler never yields rather than letting `#result` return nil for a task that never ran.
+
+Anything **not** in that list is absent inside a minion: `CurrentAttributes`, `ActsAsTenant`,
+`RequestStore`, bare `Thread.current[...]`. That is a fail-open, not just a correctness gap, since
+scoping conditional on such state applies no scope when the state is missing. It is also invisible
+to tests, because the inline path runs in the calling thread where the context is intact. Handlers
+therefore run on the inline path too, so a broken one cannot hide there.
 
 `run_in_scope` rebuilds the scope chain inside the new thread by nesting a `.scoping` block per
-class, since `.scoping` only accepts one class at a time. The thread's `ensure` returns AR
-connections to the pool via `connection_handler.clear_active_connections!` (the non-deprecated form
-as of Rails 7).
+class, since `.scoping` only accepts one class at a time. The thread's `ensure` calls `cleanup`,
+which returns AR connections to the pool via `connection_handler.clear_active_connections!` (the
+non-deprecated form as of Rails 7).
+
+`cleanup` runs under `Thread.handle_interrupt(Exception => :never)`. An `ensure` is a valid
+interrupt checkpoint, so the `Thread#raise` behind `:on_timeout` can otherwise abort cleanup
+partway and hand a connection back to the pool mid-transaction. Anything that ends up masked
+surfaces from `cleanup`'s own `rescue` and is recorded in `@exception`.
+
+### The Rails executor wraps the threaded path
+
+`Minion.executor` is assigned `Rails.application.executor` by a railtie initializer, and `run`
+wraps the thread body in it. That is what gives a thread Rails knows nothing about the framework's
+own semantics: reloading held off for the duration, connections and query cache returned at the end.
+
+Two ordering constraints, both load-bearing:
+
+- The executor must be **outside** `run_in_context`. It calls `CurrentAttributes.clear_all` from
+  both its run and complete hooks, so contexts applied outside it are wiped before the task runs.
+  `test/minion_executor_test.rb` locks this in and fails if the nesting is swapped.
+- `#result` waits inside `interlock.permit_concurrent_loads`. The waiting thread is usually in the
+  executor itself holding the interlock, and a minion that autoloads while the caller blocks on it
+  deadlocks. Real on Rails 7.2, a no-op from 8.1 where Zeitwerk retired the loading interlock.
+
+Only the threaded path is wrapped. Inline minions run in the caller's thread, which already has the
+caller's execution context, and wrapping it would reset that thread's `CurrentAttributes` when the
+minion finished. This is a deliberate exception to the mirror rule above.
 
 ### Error and timeout semantics live in `#result`
 
@@ -71,6 +108,10 @@ Lint/RescueException`) so nothing escapes the thread unreported. Do not narrow t
 `:timeout` bounds how long **`#result` waits**, not how long the minion runs. A timed-out `#result`
 returns `nil` and the minion keeps going, unless `:on_timeout` is set, in which case that exception
 class is raised *on the worker thread* to terminate it.
+
+That `nil` is ambiguous, since a minion may return `nil` itself, so `#result` also sets
+`timed_out`, cleared again by any later call that does get a result. Callers deciding anything on
+the result need `#timed_out?` or `:on_timeout`, otherwise a slow minion reads as a real answer.
 
 ### ActiveRecord and Rails are optional
 
@@ -85,13 +126,22 @@ This split is mirrored in the tests, and should be preserved:
 
 ## Gotchas
 
-- **The threaded path is not covered by `minion_test.rb`.** Line 13 iterates `[false]` only (narrowed
-  from `[false, true]` in 2022), so every `if enabled` branch in that file, including both timeout
-  tests, is dead code today. A green suite does **not** mean you exercised threading. Only
-  `minion_scope_test.rb` still runs both. Verify threading changes manually or restore `[false, true]`.
-- **`gemfiles/rails_{5.1,5.2,6.0,6.1,7.0}.gemfile` are stale leftovers.** They are still tracked in
-  git but are no longer generated by `appraisal install` nor referenced by CI, since `Appraisals`
-  defines only 7.2/8.0/8.1. Ignore them, or delete them.
+- **Both execution paths are covered.** `minion_test.rb` line 13 iterates `[false, true]`, so every
+  test runs inline and threaded. Keep it that way: narrowing it to `[false]` silently turns every
+  `if enabled` branch in the file, including both timeout tests, into dead code while the suite
+  stays green.
+- **A test asserting on thread state must first let the minion block.** Checking `completed?` or
+  `working?` immediately after construction races the scheduler, and the assertion passes whether or
+  not the code is correct. Sleep until the minion has actually reached its blocking call.
+- **`#result` must join the thread on every path, including when the minion has already finished.**
+  The join is the only happens-before edge publishing `@result`/`@exception` to the caller. Dropping
+  it looks harmless on CRuby, where the GVL hides the race, and breaks on JRuby/TruffleRuby.
+- **`completed?` uses `!alive?`, deliberately not `Thread#stop?`.** `stop?` is true for a dead *or
+  sleeping* thread, so it reports a minion blocked on I/O as completed.
+- **Do not guard a method definition on `defined?(SomeGem)`.** That decides at load time whether
+  the method exists, while callers test `defined?` at run time. `self.current_scopes` was declared
+  inside `if defined?(ActiveRecord)` and vanished whenever ActiveRecord finished loading after this
+  class did, so every threaded minion raised `NoMethodError`. Define the method and guard the call.
 - `.rubocop.yml` softens several metric limits on purpose. Prefer a targeted, commented
   `rubocop:disable` or a config change over contorting code, which is the pattern already in use.
 - Running `bundle exec` can rewrite the `gemfiles/*.gemfile` files as a side effect. Check `git

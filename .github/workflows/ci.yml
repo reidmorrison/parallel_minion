@@ -4,6 +4,10 @@ on:
   - push
   - pull_request
 
+# Least privilege. Neither job writes to the repository or publishes anything.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: "Test: Rails ${{ matrix.rails }} on Ruby ${{ matrix.ruby }}"
@@ -29,9 +33,14 @@ jobs:
       DISPLAY: ":99.0"
 
     steps:
-      - uses: actions/checkout@v2
+      # Third party actions are pinned by commit SHA. A tag is mutable, so anyone able to
+      # move it can change what runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing after checkout talks to the remote, so keep the token out of .git/config
+          persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: ${{ matrix.ruby }}
           # runs 'bundle install' and caches installed gems automatically
@@ -50,9 +59,11 @@ jobs:
     name: RuboCop
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
           ruby-version: "3.2"
           # runs 'bundle install' and caches installed gems automatically

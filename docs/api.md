@@ -37,6 +37,9 @@ The _last_ parameter passed to the initializer must be a hash consisting of:
         - If `:enabled` is false, or ParallelMinion::Minion.enabled is false,
           then :timeout is ignored and assumed to be Minion::INFINITE
           since the code is run in the calling thread when the Minion is created
+        - On timeout `#result` returns `nil`, which is indistinguishable from a minion
+          that returned `nil` of its own accord. See
+          [Detecting a timeout](#detecting-a-timeout) below
 
 - `:metric` `[String]`
     - Name of the metric to forward to Semantic Logger when measuring the minion execution time
@@ -89,6 +92,111 @@ ParallelMinion::Minion.new(10.days.ago, description: 'Doing something else in pa
   MyTable.where('created_at <= ?', date).count
 end
 ```
+
+### Carrying application context into a minion
+
+A minion runs in a new thread, and a new thread starts with empty thread local state.
+Anything the application keeps there is missing inside the minion:
+
+- `ActiveSupport::CurrentAttributes`, so `Current.user` and friends are `nil`
+- `ActsAsTenant.current_tenant` and equivalent multi-tenancy state
+- `RequestStore`, and any `Thread.current[...]` set by the application or its gems
+
+This is easy to miss because it is not only a correctness problem, and because it does not
+show up in tests. Scoping that is *conditional* on such state fails **open** when the state
+is missing. A multi-tenancy library that applies its tenant scope only when a current tenant
+is set applies no scope at all inside a minion, so:
+
+```ruby
+ParallelMinion::Minion.new(description: 'Invoices') { Invoice.where(status: 'open').to_a }.result
+```
+
+returns the current tenant's invoices in the calling thread, and **every tenant's** invoices
+inside a minion. Tests will not catch it: with minions disabled the block runs inline in the
+calling thread, where the context is intact and the scope applies correctly.
+
+Register a handler for any context that scoping depends on:
+
+```ruby
+ParallelMinion::Minion.register_context(
+  capture: -> { ActsAsTenant.current_tenant },
+  around:  ->(tenant, &block) { ActsAsTenant.with_tenant(tenant, &block) }
+)
+```
+
+`capture` runs in the thread creating the minion and returns the value to carry across.
+`around` runs inside the minion with that value and **must yield**, with the minion's task
+running in the block it is given.
+
+For Rails `Current` attributes:
+
+```ruby
+ParallelMinion::Minion.register_context(
+  capture: -> { Current.attributes },
+  around:  ->(attributes, &block) { Current.set(**attributes, &block) }
+)
+```
+
+Register these during initialization, for example in an initializer or an `after_initialize`
+block, so that every minion is covered.
+
+Notes:
+
+- Handlers run in registration order, with the first registered outermost
+- Handlers run on the inline path too, so both paths behave identically and a broken handler
+  shows up whether or not minions are enabled
+- An exception raised by `capture` propagates out of `Minion.new`, since a broken handler is a
+  configuration error rather than a task failure
+- An `around` that never yields raises, rather than leaving `#result` to return `nil`
+- ActiveRecord scopes are handled separately by `ParallelMinion::Minion.scoped_classes`, which
+  copies a relation into the minion rather than re-establishing thread local state
+
+### The Rails executor
+
+Under Rails every minion runs inside the application executor, which the railtie configures
+automatically. A minion runs outside the request cycle in a thread the framework knows nothing
+about, and the executor is what gives that thread Rails' own semantics: reloading is held off
+while the minion runs, and ActiveRecord connections and the query cache are returned when it
+finishes.
+
+Nothing needs configuring. To opt out, clear the setting after initialization:
+
+```ruby
+ParallelMinion::Minion.executor = nil
+```
+
+Notes:
+
+- Only minions running in their own thread are wrapped. An inline minion runs in the calling
+  thread, which already has the caller's execution context
+- Context handlers registered with `register_context` run *inside* the executor, so Rails
+  `Current` attributes carried across survive the reset the executor performs when it starts
+- `#result` waits inside `ActiveSupport::Dependencies.interlock.permit_concurrent_loads`, so a
+  minion that autoloads while the calling thread is blocked on it cannot deadlock against it.
+  This matters on Rails 7.2; from Rails 8.1 the loading interlock no longer exists
+
+### Detecting a timeout
+
+When a minion does not finish within `:timeout`, `#result` gives up waiting and returns `nil`.
+That `nil` says nothing about the minion, which is still running, and it is the same `nil` a
+minion returns when its block legitimately produced no answer.
+
+Use `#timed_out?` to tell them apart. It reports whether the most recent call to `#result` gave
+up waiting, and is cleared once a later call does get a result:
+
+```ruby
+minion = ParallelMinion::Minion.new(order, description: 'Risk score', timeout: 500) do |order|
+  RiskEngine.score(order)
+end
+
+score = minion.result
+raise 'Risk engine too slow' if minion.timed_out?
+```
+
+This matters whenever the minion computes something a decision depends on. Code along the lines
+of `score = minion.result.to_i` silently turns a timeout into a score of zero, so the check is
+skipped at exactly the moment the system is under load and the check is most needed. Either test
+`#timed_out?`, or set `:on_timeout` so the wait raises instead of returning.
 
 ### Disabling Minions
 
