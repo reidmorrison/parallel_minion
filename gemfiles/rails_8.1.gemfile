@@ -8,6 +8,8 @@ gem "rake"
 gem "rubocop"
 gem "rubocop-minitest"
 gem "rubocop-rake"
+gem "simplecov", require: false
+gem "solargraph"
 gem "activerecord", "~> 8.1.1"
 gem "base64"
 gem "bigdecimal"
