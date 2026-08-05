@@ -3,11 +3,13 @@ module ParallelMinion # :nodoc:
     #
     # Make the ParallelMinion config available in the Rails application config
     #
+    # `config.parallel_minion` _is_ the ParallelMinion::Minion class, so every setting on the
+    # class can be assigned through it.
+    #
     # Example: Make debugging easier
     #    in file config/environments/development.rb
     #
-    #   Rails::Application.configure do
-    #
+    #   Rails.application.configure do
     #     # Run Minions in the current thread to make debugging easier
     #     config.parallel_minion.enabled = false
     #
@@ -25,6 +27,14 @@ module ParallelMinion # :nodoc:
     #       config.parallel_minion.scoped_classes << MyScopedModel
     #     end
     #   end
+    #
+    # Example: Carry the current attributes into every Minion
+    #    in file config/initializers/parallel_minion.rb
+    #
+    #   ParallelMinion::Minion.register_context(
+    #     capture: -> { Current.attributes },
+    #     around:  ->(attributes, &block) { Current.set(**attributes, &block) }
+    #   )
     config.parallel_minion = ::ParallelMinion::Minion
 
     # Run every Minion inside the application executor, so that the thread it runs in gets

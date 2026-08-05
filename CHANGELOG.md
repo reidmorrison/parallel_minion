@@ -63,10 +63,24 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Documentation
 
-- Add an upgrading guide, and document the executor, context handlers and timeout detection.
+- Rewrite the documentation site from an end user's perspective. The six overlapping pages are
+  replaced by Home, a step by step Guide, Tuning, Rails, Reference and Upgrading, with the menu
+  reorganised to match.
+- Add a Tuning guide covering the `:metric` and `/wait` metrics, reading them on a dashboard, and
+  running experiments to work out how to divide up the work.
+- Every code example in the documentation is now executed as part of verification. Fixed the
+  examples this found to be broken, including a `SemanticLogger.add_appender` call using an API
+  removed several major versions ago, and an example that captured values the block could not see.
+- Correct `#duration`, which is documented in seconds rather than milli-seconds, and correct the
+  claim that a minion's block cannot close over local variables. `instance_exec` changes `self`,
+  so a method call on the enclosing object raises and an instance variable reads as `nil`, but
+  local variables are still captured.
+- Replace the measured overhead figures, which dated from JRuby and were roughly 5 times the
+  current cost, and frame minions around I/O bound work and the GVL.
 - Correct the stated compatibility, which still claimed Ruby 1.9 through 2.1 and JRuby 1.7, and
   drop the Rails 4.0/4.1 connection pool patch note.
-- Document using the `:metric` and wait metrics to tune how work is divided among minions.
+- Refresh the documentation site styling, and fill in the empty `scoped_classes` example in the
+  source.
 
 ### Internal
 

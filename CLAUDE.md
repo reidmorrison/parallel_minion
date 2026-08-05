@@ -40,12 +40,23 @@ one of two private methods based on `enabled`:
 `Minion.enabled?`. Turning it off globally is a supported production/debug mode, not just a test
 hook, so **any change to one path must be mirrored in the other**.
 
-### Blocks run via `instance_exec`, not as closures
+### Blocks run via `instance_exec`
 
-The block is evaluated in the scope of the Minion instance. This is deliberate: it forces data to be
-passed in explicitly as arguments (by copy, to avoid cross-thread mutation) rather than captured. A
-side effect the tests depend on is that Minion's own readers (`description`, `timeout`, `enabled?`)
-are visible inside the block.
+The block is evaluated with `self` set to the Minion instance, to push callers toward passing data
+in explicitly as arguments rather than reaching out of the block. Be precise about what that
+actually does, since only `self` changes and the block is still a closure:
+
+| Inside the block                             | Result                                    |
+|----------------------------------------------|-------------------------------------------|
+| Local from the enclosing scope                | **Still visible**, captured lexically     |
+| Method on the enclosing object                | `NameError`                                |
+| Instance variable of the enclosing object     | **Silently `nil`**, `self` is the Minion  |
+| `description`, `timeout`, `enabled?`          | The Minion's own readers, tests rely on it |
+
+So `instance_exec` is a convention, not an enforcement: a local variable can still be captured and
+mutated from both threads. The commented-out "not have access to local variables" test in
+`minion_test.rb` documents this, and would fail if uncommented. Do not describe the block as
+non-closing over its scope, in code comments or docs.
 
 ### What gets carried across the thread boundary
 

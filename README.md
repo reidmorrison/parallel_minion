@@ -1,7 +1,7 @@
 # Parallel Minion
 [![Gem Version](https://img.shields.io/gem/v/parallel_minion.svg)](https://rubygems.org/gems/parallel_minion) [![Build Status](https://github.com/reidmorrison/parallel_minion/workflows/build/badge.svg)](https://github.com/reidmorrison/parallel_minion/actions?query=workflow%3Abuild) [![Downloads](https://img.shields.io/gem/dt/parallel_minion.svg)](https://rubygems.org/gems/parallel_minion) [![License](https://img.shields.io/badge/license-Apache%202.0-brightgreen.svg)](http://opensource.org/licenses/Apache-2.0) ![](https://img.shields.io/badge/status-Production%20Ready-blue.svg)
 
-Wrap Ruby code with a minion so that it is run on a parallel thread.
+Run slow steps at the same time and cut request latency. For Ruby and Rails.
 
 ## Description
 
@@ -15,44 +15,59 @@ existing code to use minions.
 ## Example
 
 ```ruby
+# Starts running immediately, on its own thread
 minion = ParallelMinion::Minion.new(
-  10.days.ago,
-  description: 'Doing something else in parallel',
-  timeout:     1000
-) do |date|
-  MyTable.where('created_at <= ?', date).count
+  product_id,
+  description: 'Inventory lookup',
+  timeout:     1_000
+) do |id|
+  InventorySupplier.check(id)
 end
 
-# Do other work here...
+# Do other work here, while the minion runs...
 
-# Retrieve the result of the minion
-count = minion.result
-
-puts "Found #{count} records"
+# Collect the result
+inventory = minion.result
 ```
+
+Because the two run at the same time, the elapsed time is that of the slower one rather than the
+sum of both.
 
 ## Documentation
 
 For complete documentation see: http://reidmorrison.github.io/parallel_minion
 
+* [Guide](http://reidmorrison.github.io/parallel_minion/guide.html), a step by step introduction
+* [Tuning](http://reidmorrison.github.io/parallel_minion/tuning.html), metrics and dashboards for
+  dividing up the work
+* [Rails](http://reidmorrison.github.io/parallel_minion/rails.html), executor, request context and
+  ActiveRecord scopes
+* [Reference](http://reidmorrison.github.io/parallel_minion/api.html), every option and method
+* [Upgrading](http://reidmorrison.github.io/parallel_minion/upgrading.html), moving from v1 to v2
+
+## When do minions help?
+
+Minions help when code is **waiting on something**: a database query, an HTTP call, an external
+service. CRuby releases the GVL while a thread waits on I/O, so those waits genuinely overlap.
+
+Minions do not speed up pure Ruby computation on CRuby, since that holds the GVL. JRuby and
+TruffleRuby have no GVL and do run such work in parallel.
+
 ## Production Use
 
-Parallel Minion is being used in a high performance, highly concurrent
-production environment running JRuby with Ruby on Rails on a Puma web server.
-Significant reduction in the time it takes to complete rails request processing
-has been achieved by moving existing blocks of code into Minions.
+Parallel Minion is used in high performance, highly concurrent production environments running
+Ruby on Rails. Moving existing blocks of code into minions has produced significant reductions in
+request processing time, over 30% on one large application.
 
 ## Installation
 
     gem install parallel_minion
 
-## Rails 7.2 compatibility
+## Compatibility
 
-- **Apps** need **Ruby ≥ 3.1** (Rails 7.2 requirement).
-- **Code:** Thread cleanup uses `ActiveRecord::Base.connection_handler.clear_active_connections!` instead of `ActiveRecord::Base.clear_active_connections!` because Rails 7 deprecates the latter.
-- **Railtie:** Unchanged (`config.parallel_minion` as before).
-- **CI:** `rails_7.2` Appraisal  `gemfiles/rails_7.2.gemfile`, Ruby 3.2. The 7.2 appraisal pins **Minitest ~> 5.0** (tests use `stub`, removed in Minitest 6).
-- **sqlite3 (dev):** The 7.2 appraisal allows `sqlite3 >= 1.4` (including 2.x). Other gemfiles use `sqlite3 >= 1.5, < 2` to skip **1.4.4**, which often fails to compile on modern toolchains (all OSes).
+Ruby 3.2 or greater, tested against Ruby 3.2, 3.3, 3.4 and 4.0.
+
+Rails is optional. When present, Rails 7.2, 8.0 and 8.1 are tested.
 
 ## Meta
 
@@ -69,7 +84,7 @@ This project uses [Semantic Versioning](http://semver.org/).
 
 ## License
 
-Copyright 2013, 2014, 2015, 2016, 2017 Reid Morrison
+Copyright 2013-2026 Reid Morrison
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

@@ -15,8 +15,10 @@ module ParallelMinion
     # Returns [Array<Object>] list of arguments in the order they were passed into the initializer
     attr_reader :arguments
 
-    # Returns [Float] the number of milli-seconds the the minion took to complete
+    # Returns [Float] the number of seconds the minion took to complete
     # Returns nil if the minion is still running
+    #
+    # Note: seconds, not milli-seconds. `:timeout` and `#time_left` are in milli-seconds.
     attr_reader :duration
 
     # Metrics [String]
@@ -70,11 +72,25 @@ module ParallelMinion
       attr_accessor :executor
     end
 
-    # The list of classes for which the current scope must be copied into the
-    # new Minion (Thread)
+    # The list of ActiveRecord classes whose current scope is copied into every new Minion.
     #
-    # Example:
-    #   ...
+    # A Minion runs in a new thread, where `Model.all` returns the unscoped relation. Listing a
+    # class here captures its relation in the calling thread and re-applies it inside the
+    # Minion with `.scoping`, so a query that is scoped in the caller stays scoped there too.
+    #
+    # Only covers scopes that ActiveRecord itself carries on the relation. Scoping that depends
+    # on thread local state, such as a current tenant, needs `register_context` instead.
+    #
+    # Example, in a Rails initializer, or an `after_initialize` block so the models are loaded:
+    #   ParallelMinion::Minion.scoped_classes = [Account, Invoice]
+    #
+    # Example, without Rails:
+    #   ParallelMinion::Minion.scoped_classes << Account
+    #
+    #   Account.where(active: true).scoping do
+    #     # Runs as Account.where(active: true).count inside the Minion
+    #     ParallelMinion::Minion.new(description: "Active accounts") { Account.count }.result
+    #   end
     class << self
       attr_reader :scoped_classes
     end
@@ -267,16 +283,19 @@ module ParallelMinion
     #   :enabled [Boolean]
     #     Override the global setting: `ParallelMinion::Minion.enabled?` for this minion instance.
     #
-    # The overhead for moving the task to a Minion (separate thread) vs running it
-    # sequentially is about 0.3 ms if performing other tasks in-between starting
-    # the task and requesting its result.
+    # Creating a Minion and immediately asking for its result costs roughly 0.1 ms more than
+    # running the same block in-line, measured on CRuby 3.4:
+    #   ParallelMinion::Minion.new(description: "Count") { 1 }.result
     #
-    # The following call adds 0.5 ms to total processing time vs running the
-    # code in-line:
-    #   ParallelMinion::Minion.new(description: 'Count', timeout: 5) { 1 }.result
+    # So a block is worth moving into a Minion once it takes appreciably longer than that, and
+    # only when it spends its time waiting on something: a query, an HTTP call, an external
+    # service. CRuby releases the GVL while a thread waits on I/O, so those waits overlap.
+    # Pure Ruby computation does not run in parallel on CRuby, and a Minion will not make it
+    # faster. JRuby and TruffleRuby have no GVL and do run it in parallel.
     #
     # Note:
-    #   On JRuby it is recommended to add the following setting to .jrubyrc
+    #   On JRuby, enable the built-in thread pool to reduce thread creation cost, by adding
+    #   the following to .jrubyrc
     #     thread.pool.enabled=true
     #
     # Example:
