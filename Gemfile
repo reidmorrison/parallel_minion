@@ -8,6 +8,8 @@ gem "rake"
 gem "rubocop"
 gem "rubocop-minitest"
 gem "rubocop-rake"
+gem "simplecov", require: false
+gem "solargraph"
 
 # Rails 7.2 stack: MRI needs explicit base64/bigdecimal on Ruby 3.4+ (stdlib default gems).
 gem "activerecord", "~> 7.2"

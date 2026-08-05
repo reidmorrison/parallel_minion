@@ -310,14 +310,8 @@ module ParallelMinion
     # Returns the current scopes for each of the models for which scopes will be
     # copied to the Minions
     if defined?(ActiveRecord)
-      if ActiveRecord::VERSION::MAJOR >= 4
-        def self.current_scopes
-          scoped_classes.collect(&:all)
-        end
-      else
-        def self.current_scopes
-          scoped_classes.collect(&:scoped)
-        end
+      def self.current_scopes
+        scoped_classes.collect(&:all)
       end
     end
 

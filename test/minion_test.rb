@@ -10,7 +10,7 @@ class MinionTest < Minitest::Test
       l
     end
 
-    [false].each do |enabled|
+    [false, true].each do |enabled|
       describe enabled ? "enabled" : "disabled" do
         before do
           ParallelMinion::Minion.enabled = enabled
