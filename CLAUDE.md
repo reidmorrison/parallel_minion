@@ -22,6 +22,19 @@ agents inside applications can read them locally.
 
 `AGENTS.md` exists only to point other agents at this file. Keep guidance here, not there.
 
+Every fenced code block in `docs/*.md` and in the `lib/` comments is expected to be correct Ruby
+that reflects the current API, and the docs were last verified that way: extract every block,
+syntax check all of them, and execute the self contained ones against test doubles. **Nothing in
+`rake` or CI enforces this**, so it has to be redone by hand after a docs change. That pass found
+several examples that had been wrong for years, including a `SemanticLogger.add_appender` call
+using an API removed several major versions earlier, so treat an existing example as unverified
+rather than as a model to copy.
+
+The sister project `semantic_logger` (same author, `../semantic_logger`) is the reference for
+anything structural: gemspec layout, `CHANGELOG.md` format, the docs site theme, the `llms.txt` /
+`llms-full.txt` / `AGENTS.md` set, and the Rakefile tasks. Look there first and stay diffable with
+it rather than inventing a second convention.
+
 ## Commands
 
 ```sh
@@ -171,3 +184,16 @@ This split is mirrored in the tests, and should be preserved:
   `rubocop:disable` or a config change over contorting code, which is the pattern already in use.
 - Running `bundle exec` can rewrite the `gemfiles/*.gemfile` files as a side effect. Check `git
   status` before committing so unintended regeneration is not swept into a commit.
+
+## Known tech debt
+
+Standing items, recorded so a session knows what is deliberate and what is worth fixing.
+
+- **Docs example verification is not automated.** See the Docs section above. The obvious fix is a
+  `test/docs_test.rb` that extracts and executes the blocks, so `rake test` and CI cover it.
+- **Unreachable Rails 5 skip branch.** `test/minion_scope_test.rb` opens with a guard skipping the
+  whole file on `defined?(JRUBY_VERSION) && ActiveRecord::VERSION::MAJOR < 6`. `Appraisals` has
+  only covered Rails 7.2, 8.0 and 8.1 since v2.0, so that branch can no longer be taken, and the
+  comment above it describes a Rails 5.2 bug that no longer applies. Delete both.
+- **`rake publish` runs no tests.** It tags, pushes the tag, and pushes the gem. Run `rake` or
+  confirm CI is green first; the task will not do it for you.
