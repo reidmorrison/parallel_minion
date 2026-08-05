@@ -10,6 +10,17 @@ See `docs/` (published to https://minion.rocketjob.io, via the `CNAME` in that d
 user-facing docs. Pages: Home, Guide, Tuning, Rails, Reference, Upgrading. The nav is generated
 from the `nav_items` list in `docs/_layouts/default.html`, so a new page must be added there too.
 
+## Docs
+
+The site also serves two files for AI assistants: `docs/llms.txt`, a hand-maintained index of the
+pages (update it when adding or renaming one), and `docs/llms-full.txt`, every page concatenated.
+**After editing any `docs/*.md` page, re-run `bundle exec rake llms_full`** and commit the result;
+never edit `llms-full.txt` by hand, and add new pages to the `pages` list in that task. The
+`docs/*.md` sources also ship inside the gem package (see `spec.files` in the gemspec) so coding
+agents inside applications can read them locally.
+
+`AGENTS.md` exists only to point other agents at this file. Keep guidance here, not there.
+
 ## Commands
 
 ```sh

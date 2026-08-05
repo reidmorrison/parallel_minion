@@ -71,3 +71,10 @@ jobs:
 
       - name: Run RuboCop
         run: bundle exec rake rubocop
+
+      # docs/llms-full.txt is generated from the docs pages and checked in, so it can silently
+      # go stale. Regenerate it and fail if that produced a diff.
+      - name: Check docs/llms-full.txt is up to date
+        run: |
+          bundle exec rake llms_full
+          git diff --exit-code docs/llms-full.txt

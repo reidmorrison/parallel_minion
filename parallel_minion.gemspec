@@ -16,7 +16,10 @@ Gem::Specification.new do |spec|
                                "same time. Wrap a block in a minion and collect its result later, " \
                                "with exceptions re-raised in the calling thread and timeouts that " \
                                "return a partial answer instead of hanging."
-  spec.files                 = Dir["lib/**/*", "docs/*.md", "LICENSE.txt", "Rakefile", "README.md"]
+  # docs/*.md and the llms.txt index ship in the package so coding agents working inside an
+  # application can read the manual locally.
+  spec.files                 = Dir["lib/**/*", "docs/*.md", "docs/llms.txt", "LICENSE.txt", "Rakefile",
+                                   "README.md"]
   spec.license               = "Apache-2.0"
   spec.required_ruby_version = ">= 3.2"
   spec.add_dependency "semantic_logger", "~> 5.0"

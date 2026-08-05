@@ -1,0 +1,1464 @@
+# Parallel Minion - Complete Documentation
+
+> Parallel Minion runs a block of Ruby code on another thread and hands back its result when the
+> caller asks for it, so independent slow steps overlap instead of running one after another.
+
+This file concatenates every page of https://minion.rocketjob.io for consumption by AI assistants.
+It is generated from the markdown sources in docs/ by `bundle exec rake llms_full`; do not edit it directly.
+A per-page index is available at https://minion.rocketjob.io/llms.txt
+
+
+---
+
+<!-- source: docs/index.md -->
+
+## What is Parallel Minion?
+
+Parallel Minion runs a block of Ruby code on another thread, and gives you its result when you
+ask for it.
+
+A **minion** is one such block. You hand it work, carry on with something else, and collect the
+answer later:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Count people") { Person.count }
+
+# Do other work here, while the minion counts...
+
+count = minion.result
+~~~
+
+That is the whole idea. Work that used to run one step after another now overlaps, so the total
+time is closer to the slowest single step than to the sum of all of them.
+
+## Why use it?
+
+### It is ordinary code, moved
+
+Wrapping existing code in a minion does not change how that code behaves:
+
+* The block returns its value through `#result`, exactly as it did before.
+* An exception raised inside the block is re-raised in your thread when you call `#result`, so
+  existing `rescue` handlers keep working.
+* There are no actors, channels, supervisors, or callbacks to learn.
+
+That is the difference between Parallel Minion and a general concurrency framework. There is one
+class and one method to learn, so moving a slow block into a minion is usually a two line change
+that any Ruby developer can review.
+
+### Slow steps stop blocking each other
+
+A request that makes three calls of 300 ms, 500 ms and 800 ms takes 1,600 ms when they run one
+after another. Run them as minions and it takes about 800 ms, the time of the slowest one.
+
+### A slow dependency does not sink the whole request
+
+Give a minion a `:timeout` and `#result` stops waiting after that long. The request can return a
+partial answer instead of hanging or failing outright, while the minion carries on in the
+background and finishes its work.
+
+### It tells you where the time went
+
+Every minion logs how long it took, and how long the calling thread had to wait for it. Turn on
+metrics and that data drives dashboards, which is what turns dividing up the work from guesswork
+into something you can measure. See [Tuning](https://minion.rocketjob.io/tuning.html).
+
+## When do minions help?
+
+Minions help when your code is **waiting on something else**: a database query, an HTTP call to
+an external service, a file read, a cache lookup. CRuby releases the Global VM Lock while a
+thread waits on I/O, so those waits genuinely overlap and the elapsed time drops.
+
+Minions do **not** speed up pure Ruby computation on CRuby. Sorting a large array, rendering
+templates, or doing arithmetic in Ruby all hold the GVL, so running two of them on two threads
+takes the same total time as running them one after another. JRuby and TruffleRuby have no GVL
+and do run such work in parallel.
+
+A useful rule of thumb:
+
+| The block spends its time...                        | Will a minion help? |
+| :-------------------------------------------------- | :------------------ |
+| Waiting on a database query                          | Yes                 |
+| Waiting on an HTTP or gRPC call                      | Yes                 |
+| Waiting on a file, socket, or cache                  | Yes                 |
+| Running Ruby code, on CRuby                          | No                  |
+| Running Ruby code, on JRuby or TruffleRuby           | Yes                 |
+
+Creating a minion and immediately asking for its result costs roughly 0.1 ms more than running
+the block in-line, measured on CRuby 3.4. So a block is worth moving into a minion once it takes
+appreciably longer than that. In practice, anything that regularly takes more than a few
+milliseconds is a candidate.
+
+## Installation
+
+Add it to your `Gemfile`:
+
+~~~ruby
+gem "parallel_minion"
+~~~
+
+Then:
+
+~~~
+bundle install
+~~~
+
+Or install it directly:
+
+~~~
+gem install parallel_minion
+~~~
+
+Parallel Minion depends only on
+[Semantic Logger](https://logger.rocketjob.io), which it uses for its logging and its built-in
+timing and metrics.
+
+Under Rails, that is all that is needed. A railtie wires up the configuration and the Rails
+executor for you. See the [Rails guide](https://minion.rocketjob.io/rails.html).
+
+## Your first minion
+
+Move one slow call onto a minion, and collect it after doing other work:
+
+~~~ruby
+# Start the slow call first, so it runs while we do everything else
+inventory_minion = ParallelMinion::Minion.new(
+  product_id,
+  description: "Inventory lookup",
+  timeout:     2_000
+) do |id|
+  InventorySupplier.check(id)
+end
+
+# Meanwhile, on this thread
+person_count = Person.where(state: "FL").count
+
+# Now collect the minion's answer
+inventory = inventory_minion.result
+~~~
+
+Three things to notice, all covered step by step in the [Guide](https://minion.rocketjob.io/guide.html):
+
+1. **The minion is created and starts immediately.** There is no separate `start` call.
+2. **`product_id` is passed in as an argument**, not captured from the surrounding code. That is
+   deliberate, and the Guide explains why it matters.
+3. **`#result` is called last**, after the other work. Calling it straight away would simply
+   wait, and you would gain nothing.
+
+## Where to go next
+
+* **[Guide](https://minion.rocketjob.io/guide.html)** builds up from a single minion to a request served by several, one
+  step at a time. Start here.
+* **[Tuning](https://minion.rocketjob.io/tuning.html)** covers measuring minions in production, and using metrics and
+  dashboards to work out how to divide up the work.
+* **[Rails](https://minion.rocketjob.io/rails.html)** covers the executor, carrying request context into a minion,
+  ActiveRecord scopes, and testing.
+* **[Reference](https://minion.rocketjob.io/api.html)** documents every option and method.
+* **[Upgrading](https://minion.rocketjob.io/upgrading.html)** covers moving from v1 to v2.
+
+## Compatibility
+
+Parallel Minion requires Ruby 3.2 or greater, and is tested against Ruby 3.2, 3.3, 3.4 and 4.0,
+on both CRuby and JRuby.
+
+Rails is optional. When present, Rails 7.2, 8.0 and 8.1 are tested. Parallel Minion works
+without Rails or ActiveRecord, in which case the Rails specific behaviour is simply not used.
+
+
+---
+
+<!-- source: docs/guide.md -->
+
+## Guide
+
+This guide starts with a single minion and builds up to a request served by several at once.
+Each step adds one idea, so work through them in order the first time.
+
+Every example runs as written. If you want to follow along in `irb`:
+
+~~~ruby
+require "parallel_minion"
+require "semantic_logger"
+
+SemanticLogger.add_appender(io: $stdout, formatter: :color)
+SemanticLogger.default_level = :info
+~~~
+
+## Step 1: Run a block on another thread
+
+Create a minion with a block. It starts running immediately, on its own thread:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Slow task") do
+  sleep 1
+  "done"
+end
+~~~
+
+There is no separate `start` method. By the time `Minion.new` returns, the block is already
+running. The calling thread carries straight on to the next line.
+
+`:description` names the minion. It appears in every log entry the minion writes, and becomes the
+name of its thread, so it is worth making it specific. It defaults to `"Minion"`.
+
+## Step 2: Collect the result
+
+Call `#result` to get the block's return value:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Slow task") do
+  sleep 1
+  "done"
+end
+
+# Other work happens here, taking its own time...
+
+minion.result   # => "done"
+~~~
+
+`#result` waits for the minion to finish, so **where you call it decides what you gain**. Call it
+immediately and you simply wait, having gained nothing:
+
+~~~ruby
+# Pointless: this is just sleep 1 with extra steps
+ParallelMinion::Minion.new { sleep 1 }.result
+~~~
+
+The pattern that pays off is: start the minion early, do other work, call `#result` late.
+
+`#result` can be called more than once. Later calls return the same value without waiting again.
+
+## Step 3: Pass data in as arguments
+
+Anything the block needs should be passed as an argument to `Minion.new`, and arrives as a block
+parameter in the same order:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(user.id, "FL", description: "Count") do |user_id, state|
+  Person.where(user_id: user_id, state: state).count
+end
+~~~
+
+### What the block can see
+
+The block runs with `self` set to the minion itself, not the object you wrote it in. That has
+consequences which are worth knowing precisely, because only some of them are obvious:
+
+| Written inside the block                     | What happens                                    |
+| :------------------------------------------- | :---------------------------------------------- |
+| A local variable from the enclosing method    | **Still visible.** Blocks capture locals         |
+| A method on the enclosing object              | `NameError`                                      |
+| An instance variable of the enclosing object  | **Silently `nil`**                               |
+| `description`, `timeout`, `enabled?`          | The minion's own readers                         |
+
+The last two are the ones that catch people out.
+
+An instance variable is the sharper edge. `self` is the minion, which has no `@customer` of its
+own, so it evaluates to `nil` rather than raising:
+
+~~~ruby
+class OrderService
+  def process
+    @customer = Customer.find(1)
+
+    # @customer is nil in here. No error, just nil.
+    ParallelMinion::Minion.new { @customer.name }
+  end
+end
+~~~
+
+Pass it in instead:
+
+~~~ruby
+ParallelMinion::Minion.new(@customer) { |customer| customer.name }
+~~~
+
+Local variables *are* still reachable, so nothing stops you writing this:
+
+~~~ruby
+totals = {count: 0}
+
+# Works, and is a data race waiting to happen
+ParallelMinion::Minion.new { totals[:count] += 1 }
+~~~
+
+Passing arguments explicitly is a convention rather than something the language enforces here. It
+is worth following anyway, because it makes what crosses the thread boundary visible in one place.
+
+### Arguments are passed by reference
+
+Parallel Minion does not duplicate arguments for you. If you pass something both threads might
+modify, copy or freeze it yourself:
+
+~~~ruby
+# Risky: both threads now hold the same Hash
+ParallelMinion::Minion.new(options) { |opts| opts[:count] += 1 }
+
+# Safe: the minion gets its own copy
+ParallelMinion::Minion.new(options.dup) { |opts| opts[:count] += 1 }
+
+# Also safe: nobody can modify it
+ParallelMinion::Minion.new(options.freeze) { |opts| opts[:count] }
+~~~
+
+Read-only access to shared data is fine. It is writing from two threads that causes trouble.
+
+## Step 4: Let exceptions surface
+
+An exception raised inside the block does not crash the minion's thread silently. It is captured,
+and re-raised in your thread when you call `#result`:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Risky") { raise "Something failed" }
+
+begin
+  minion.result
+rescue RuntimeError => e
+  puts e.message   # => "Something failed"
+end
+~~~
+
+This is what makes moving existing code into a minion safe. Your existing `rescue` handlers
+around the call site keep working, because the exception still arrives on your thread.
+
+To check without raising:
+
+~~~ruby
+minion.failed?     # => true
+minion.exception   # => #<RuntimeError: Something failed>
+~~~
+
+If you never call `#result`, the exception is still written to the log, so a fire-and-forget
+minion cannot fail completely silently.
+
+## Step 5: Give the wait a deadline
+
+`:timeout` sets how many milliseconds `#result` will wait:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Slow supplier", timeout: 500) do
+  sleep 5
+  "too late"
+end
+
+minion.result   # => nil, after about 500 ms
+~~~
+
+The most important thing to understand about `:timeout`:
+
+> It limits **how long `#result` waits**, not how long the minion runs.
+
+The minion is still running after the timeout. It is not killed. That is usually what you want
+from an external call: return a partial answer to the user now, and let the minion finish writing
+whatever it retrieved. Without a `:timeout`, `#result` waits forever.
+
+## Step 6: Tell a timeout apart from a real nil
+
+A timed out `#result` returns `nil`. So does a minion whose block returned `nil`. Use
+`#timed_out?` to tell them apart:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(order, description: "Risk score", timeout: 500) do |order|
+  RiskEngine.score(order)
+end
+
+score = minion.result
+
+if minion.timed_out?
+  # The risk engine did not answer in time. Decide deliberately.
+  raise "Risk engine too slow"
+end
+~~~
+
+This matters whenever something is decided on the result. Code like this:
+
+~~~ruby
+# Wrong: a timeout silently becomes a score of zero
+approve! if minion.result.to_i < THRESHOLD
+~~~
+
+turns a slow dependency into an approval, at exactly the moment the system is under load. Either
+check `#timed_out?`, or use `:on_timeout` in the next step.
+
+## Step 7: Stop a minion that has timed out
+
+Sometimes letting the minion carry on is wrong, and you want it to stop. Pass an exception class
+as `:on_timeout` and it is raised **on the minion's own thread**, ending it:
+
+~~~ruby
+minion = ParallelMinion::Minion.new(description: "Slow supplier", timeout: 500, on_timeout: Timeout::Error) do
+  sleep 5
+end
+
+minion.result       # => nil, after about 500 ms, and the minion is now being terminated
+minion.result       # raises Timeout::Error, since the minion ended with it
+~~~
+
+The first `#result` still returns `nil`. The minion ends with that exception, so any later
+`#result` raises it.
+
+Use `:on_timeout` only for work that is safe to abandon part way through. The exception can arrive
+at any point in the block, so a minion that writes to several places may stop between two of them.
+For work with side effects, prefer a plain `:timeout` and let it finish.
+
+## Step 8: Run several minions at once
+
+Nothing changes when you use more than one. Start them all, then collect them:
+
+~~~ruby
+minions = [
+  ParallelMinion::Minion.new(product_id, description: "Inventory") { |id| InventorySupplier.check(id) },
+  ParallelMinion::Minion.new(user_name, description: "User info") { |name| UserSupplier.more_info(name) },
+  ParallelMinion::Minion.new(user_id, description: "Requests") { |id| Request.where(user_id: id).count }
+]
+
+inventory, user_info, request_count = minions.map(&:result)
+~~~
+
+Because they run at the same time, the elapsed time is roughly that of the **slowest** minion, not
+the sum.
+
+## Step 9: A worked example
+
+Here is a request that does four things in sequence. The comments give each step's average
+duration:
+
+~~~ruby
+def process_request(request)
+  # 150 ms
+  person_count = Person.where(state: "FL").count
+
+  # 320 ms
+  request_count = Request.where(user_id: request.user.id).count
+
+  # 1,800 ms, and sometimes hangs when the supplier does not respond
+  inventory = InventorySupplier.check_inventory(request.product.id)
+
+  # 1,500 ms
+  user_info = UserSupplier.more_info(request.user.name)
+
+  build_reply(person_count, request_count, inventory, user_info)
+end
+~~~
+
+That totals about **3,770 ms**.
+
+### Move the slowest call to a minion
+
+The supplier call is both the slowest and the least reliable, so it goes first:
+
+~~~ruby
+def process_request(request)
+  # Started first, so it runs while everything else happens
+  inventory_minion = ParallelMinion::Minion.new(
+    request.product.id,
+    description: "Inventory lookup",
+    timeout:     2_200
+  ) do |product_id|
+    InventorySupplier.check_inventory(product_id)
+  end
+
+  person_count  = Person.where(state: "FL").count                       # 150 ms
+  request_count = Request.where(user_id: request.user.id).count         # 320 ms
+  user_info     = UserSupplier.more_info(request.user.name)             # 1,500 ms
+
+  # Collected last, after everything else is done
+  inventory = inventory_minion.result
+
+  build_reply(person_count, request_count, inventory, user_info)
+end
+~~~
+
+The calling thread now does 150 + 320 + 1,500 = 1,970 ms of work while the minion spends 1,800 ms
+on the supplier. They overlap, so the request takes about **1,970 ms**, down from 3,770 ms.
+
+Notice that the minion was started at the very top and collected at the very bottom. That is the
+single most important habit in this guide.
+
+We also gave it a 2,200 ms timeout. If the supplier hangs, the request returns without inventory
+data rather than hanging with it.
+
+### Move a second call
+
+The calling thread is now the slow side at 1,970 ms, so move some of its work off too:
+
+~~~ruby
+def process_request(request)
+  inventory_minion = ParallelMinion::Minion.new(
+    request.product.id,
+    description: "Inventory lookup",
+    timeout:     2_200
+  ) do |product_id|
+    InventorySupplier.check_inventory(product_id)
+  end
+
+  request_count_minion = ParallelMinion::Minion.new(
+    request.user.id,
+    description: "Request count",
+    timeout:     500
+  ) do |user_id|
+    Request.where(user_id: user_id).count
+  end
+
+  # Leave the calling thread some work to do as well
+  person_count = Person.where(state: "FL").count                        # 150 ms
+  user_info    = UserSupplier.more_info(request.user.name)              # 1,500 ms
+
+  request_count = request_count_minion.result
+  inventory     = inventory_minion.result
+
+  build_reply(person_count, request_count, inventory, user_info)
+end
+~~~
+
+Now the calling thread does 1,650 ms of work, the inventory minion 1,800 ms, and the request
+count minion 320 ms. The request takes about **1,800 ms**, set by the slowest of the three.
+
+Down from 3,770 ms to 1,800 ms, with the same code doing the same work.
+
+### What to notice
+
+* **The floor is the slowest single piece.** No amount of extra minions gets below 1,800 ms while
+  the inventory call takes that long. To go faster, that call has to be split up or made faster.
+* **The calling thread should carry work too.** Leaving it idle while three minions run wastes a
+  thread you already have.
+* **Balance beats quantity.** The aim is for everything to finish at about the same moment.
+
+Working out that balance is a measurement problem, not a guessing one, which is what
+[Tuning](https://minion.rocketjob.io/tuning.html) is about.
+
+## Step 10: Turn minions off while debugging
+
+Set `:enabled` to `false` and the block runs in the calling thread, immediately, before
+`Minion.new` returns:
+
+~~~ruby
+ParallelMinion::Minion.new(description: "Debug me", enabled: false) { Person.count }
+~~~
+
+Everything else behaves the same: `#result` returns the value, exceptions are re-raised, and the
+log entries appear as usual, but named `Inline` instead of `Minion` so you can tell them apart.
+This puts a breakpoint inside the block back on your own stack.
+
+To turn every minion off at once:
+
+~~~ruby
+ParallelMinion::Minion.enabled = false
+~~~
+
+Under Rails, use the configuration setting instead, as covered in the
+[Rails guide](https://minion.rocketjob.io/rails.html#disabling-minions).
+
+Because `:timeout` only ever limited how long `#result` waited, and an inline minion has already
+finished by then, `:timeout` and `:on_timeout` have no effect when disabled.
+
+## Step 11: Check on a minion without waiting
+
+To look at a minion's state without blocking:
+
+~~~ruby
+minion.working?     # true while it is still running
+minion.completed?   # true once it has finished
+minion.failed?      # true if it ended with an exception
+minion.time_left    # milliseconds left before #result would give up, nil if no timeout
+minion.duration     # how long it took, once finished
+~~~
+
+`#working?` and `#completed?` are exact opposites. A minion blocked on a database call is still
+`working?`, not `completed?`.
+
+Bear in mind that a minion which is `completed?` may still have failed, so check `#failed?` too,
+or just call `#result` and let it raise.
+
+## Next steps
+
+* **[Tuning](https://minion.rocketjob.io/tuning.html)** for measuring minions and dividing the work using real numbers.
+* **[Rails](https://minion.rocketjob.io/rails.html)** for the executor, request context, ActiveRecord scopes, and testing.
+* **[Reference](https://minion.rocketjob.io/api.html)** for every option and method.
+
+
+---
+
+<!-- source: docs/tuning.md -->
+
+## Tuning
+
+Deciding what to move into a minion, and how to split the work between them, is the part that
+actually determines how fast a request gets. It is also the part most often done by guesswork.
+
+It does not have to be. Every minion already records how long it took and how long it kept the
+calling thread waiting. Send those numbers to a dashboard and each change you make becomes an
+experiment with a measurable outcome.
+
+## Step 1: Measure before you parallelize
+
+Start by finding out where the time actually goes. There is no point moving a 4 ms call onto a
+thread.
+
+Semantic Logger measures a block and logs how long it took:
+
+~~~ruby
+logger = SemanticLogger["Inventory"]
+
+logger.measure_info("Counting rows") do
+  Person.where(state: "FL").count
+end
+~~~
+
+Under Rails, with the
+[rails_semantic_logger](https://github.com/reidmorrison/rails_semantic_logger) gem, use
+`Rails.logger`:
+
+~~~ruby
+Rails.logger.measure_info("Counting rows") do
+  Person.where(state: "FL").count
+end
+~~~
+
+Outside Rails, set up a logger first:
+
+~~~ruby
+require "semantic_logger"
+
+SemanticLogger.default_level = :trace
+SemanticLogger.add_appender(file_name: "development.log", formatter: :color)
+
+logger = SemanticLogger["MyClass"]
+
+logger.measure_info("Counting rows") do
+  Person.where(state: "FL").count
+end
+~~~
+
+Work through the request measuring each step. You are looking for two things:
+
+1. **Which steps are slow enough to be worth moving.** Anything consistently over a few
+   milliseconds is a candidate. Below that, the roughly 0.1 ms cost of a minion is not worth it.
+2. **Which steps depend on each other.** A step that needs the output of another cannot run
+   beside it. Those dependencies decide what is possible before any measurement does.
+
+## Step 2: Name a metric on each minion
+
+Once minions are in place, give each one a `:metric`:
+
+~~~ruby
+ParallelMinion::Minion.new(
+  address,
+  description: "Cleanse address",
+  metric:      "inquiry/address_cleansing"
+) do |address|
+  AddressCleanser.call(address)
+end
+~~~
+
+That is the only instrumentation needed. No timing code, no counters. Naming the metric is
+enough, and it is worth using a consistent naming scheme such as `request_type/step_name` so that
+related minions group together on a dashboard.
+
+## Step 3: Understand the two numbers
+
+A single `:metric` produces **two** metrics:
+
+| Metric                             | What it measures                                                   |
+| :--------------------------------- | :----------------------------------------------------------------- |
+| `inquiry/address_cleansing`        | How long the minion itself took                                     |
+| `inquiry/address_cleansing/wait`   | How long the calling thread sat in `#result` waiting for it         |
+
+The second one is the one that drives tuning, and it is worth being precise about what it means.
+
+Wait time is only recorded when the minion is **still running** at the moment its result is
+requested. A minion that finished before you asked records no wait at all. So:
+
+* **High wait** means the calling thread reached `#result` and then sat there. That minion is
+  holding up the request.
+* **Zero wait** means the minion had already finished. It cost the request nothing in elapsed
+  time.
+
+Rename the wait metric with `:wait_metric` if the default name does not suit your scheme.
+
+## Step 4: Send the metrics to a dashboard
+
+Metrics go nowhere until a subscriber is registered. Parallel Minion emits metrics through
+Semantic Logger, so any backend it supports will do, including Statsd, New Relic, SignalFx, and
+via ordinary log appenders, Elasticsearch and Splunk.
+
+Registering one is a single line at startup, for example:
+
+~~~ruby
+SemanticLogger.add_appender(metric: :statsd, url: "udp://localhost:8125")
+~~~
+
+The full list of backends, and their individual options, are covered in the
+[Semantic Logger metrics documentation](https://logger.rocketjob.io/metrics.html). Everything
+below applies whichever one you use.
+
+Build a dashboard with, per minion:
+
+* **Duration**, as a percentile rather than a mean. The 95th and 99th percentiles are what your
+  slowest users experience, and averages hide exactly the tail you are trying to fix.
+* **Wait time**, on the same axis, so you can see the gap between the two.
+
+And for the request as a whole:
+
+* **Total elapsed time**, the number you are actually trying to reduce.
+* **Total wait time across all minions**, which is how much of that elapsed time was spent
+  blocked.
+
+## Step 5: Read the dashboard
+
+The goal is simple to state: **every minion should finish at about the same time**.
+
+That balance sits between two failure modes, and the dashboard tells them apart at a glance.
+
+**A minion that finishes early.** Its duration is well below the others and its wait is zero. It
+consumed a thread but bought no time, because the request was never waiting on it. Give it more
+work, merge it into another minion, or move it back to the calling thread.
+
+**A minion that finishes late.** Its duration is the largest and it shows a big `/wait`.
+Everything else is done and the request is sitting there waiting for this one. It sets the floor
+for the whole request. Either split it into several smaller minions, or make the underlying call
+faster.
+
+So there are two numbers to move, and they pull against each other:
+
+1. Drive **total wait time toward zero**.
+2. While moving **as much work as possible** off the calling thread.
+
+Neither is useful alone. Wait time can always be driven to zero by running everything
+sequentially, which is the slowest possible arrangement. Work moved off the calling thread can
+always be increased by spawning minions that nobody waits for. It is the pair together that
+describes a well balanced request.
+
+## Step 6: Run an experiment
+
+With those numbers on a dashboard, changing how the work is divided stops being a guess:
+
+1. **Form a hypothesis.** "The inventory minion sets our floor at 1,800 ms. Splitting it into
+   three regional lookups should bring it to about 600 ms."
+2. **Change one thing.** One split, one merge, one call moved. Changing several at once makes the
+   result impossible to attribute.
+3. **Deploy and let it settle.** Wait for enough traffic that the percentiles are stable, not the
+   first few requests after a deploy when caches are cold.
+4. **Compare the same panels.** Did total elapsed time fall? Did total wait fall, or simply move
+   to a different minion?
+5. **Keep it or revert it,** then repeat.
+
+The common surprise is a change that reduces one minion's wait while total elapsed time stays
+flat, because the wait moved to whichever minion is now the slowest. That is still useful
+information: it tells you that you have found the real floor, and that the next improvement has
+to come from the critical path rather than from rearranging what is around it.
+
+## Step 7: Split a minion that sets the floor
+
+When one minion is consistently the slowest, splitting it is usually the next move:
+
+~~~ruby
+# Before: one minion, setting a 1,800 ms floor
+inventory_minion = ParallelMinion::Minion.new(regions, description: "Inventory") do |regions|
+  regions.map { |region| InventorySupplier.check(region) }
+end
+
+# After: one minion per region, running side by side
+inventory_minions = regions.map do |region|
+  ParallelMinion::Minion.new(region, description: "Inventory #{region}", metric: "inventory/check") do |r|
+    InventorySupplier.check(r)
+  end
+end
+
+inventory = inventory_minions.map(&:result)
+~~~
+
+Each region now runs beside the others, so the group takes as long as the slowest region rather
+than the sum of all of them.
+
+Note that all of the split minions share one metric name here. That is often what you want: the
+percentiles then describe the regional lookup as an operation, rather than producing a separate
+panel per region.
+
+Two limits worth knowing before splitting aggressively:
+
+* **Every minion is a real thread**, and each one calling the database needs its own connection
+  from the pool. Splitting one minion into ten can exhaust a pool sized for a single connection
+  per request. Size the pool for the concurrency you actually create.
+* **Splitting only helps work that waits.** Splitting a CPU-bound block into four minions on
+  CRuby produces four minions contending for the same GVL and no improvement at all.
+
+## Step 8: Prove the benefit
+
+Minions can be turned off globally, which makes a direct comparison possible:
+
+~~~ruby
+ParallelMinion::Minion.enabled = false
+~~~
+
+Every minion then runs inline in the calling thread, in the order it was created, as though the
+minions were never there. Nothing else changes: results, exceptions, and log entries all behave
+the same.
+
+Run one production server with minions disabled and compare its latency against the rest. That
+gives a real measurement of what minions are buying, on real traffic, rather than a benchmark.
+
+It is also the first thing to try when something is behaving strangely in production and you are
+not sure whether concurrency is involved. If the problem persists with minions disabled, it was
+never a concurrency problem.
+
+## How far this goes
+
+Tuned this way, some production request types ended up running as many as 40 minions to service a
+single inbound request. Coordinating that by hand would not be practical, which is precisely why
+Parallel Minion generates these metrics automatically: every minion is measured identically, and
+the dashboard shows which one is setting the floor.
+
+The result on one large Rails application was a latency reduction of over 30%, arrived at by
+repeating the loop in Step 6 rather than by any single change.
+
+
+---
+
+<!-- source: docs/rails.md -->
+
+## Rails
+
+Parallel Minion works without Rails, but when Rails is present a railtie wires up the pieces that
+make minions behave like the rest of your application. This page covers what that does, and the
+one thing you should configure yourself.
+
+## Setup
+
+Add the gem to your `Gemfile`:
+
+~~~ruby
+gem "parallel_minion"
+~~~
+
+That is all. The railtie is loaded automatically and does two things:
+
+1. Exposes every Parallel Minion setting through `config.parallel_minion`.
+2. Runs every minion inside the Rails executor.
+
+`config.parallel_minion` **is** the `ParallelMinion::Minion` class, so anything you can set on the
+class you can set through the configuration:
+
+~~~ruby
+# config/environments/development.rb
+Rails.application.configure do
+  config.parallel_minion.enabled            = false
+  config.parallel_minion.started_log_level  = :debug
+  config.parallel_minion.completed_log_level = :debug
+end
+~~~
+
+## Carrying request context into a minion
+
+This is the one thing worth configuring deliberately, and the one most likely to cause a subtle
+bug if you skip it.
+
+A minion runs on a new thread, and **a new thread starts with empty thread local state**. So
+anything your application keeps there is missing inside a minion:
+
+* `ActiveSupport::CurrentAttributes`, so `Current.user` and friends are `nil`
+* `ActsAsTenant.current_tenant`, and equivalent multi-tenancy state
+* `RequestStore`, and any `Thread.current[...]` set by your code or a gem
+
+### Why this matters more than it looks
+
+If that state only affected display, a `nil` would be obvious. The problem is that scoping is
+often **conditional** on it, and conditional scoping fails *open*.
+
+A multi-tenancy library that applies its tenant scope only when a current tenant is set applies
+**no scope at all** when there is not one. So:
+
+~~~ruby
+ParallelMinion::Minion.new(description: "Invoices") { Invoice.where(status: "open").to_a }.result
+~~~
+
+returns the current tenant's invoices when run in the calling thread, and **every tenant's**
+invoices when run in a minion.
+
+Worse, tests do not catch it. With minions disabled the block runs inline in the calling thread,
+where the context is intact and the scope applies correctly. The suite passes and production
+leaks.
+
+### Registering a handler
+
+Tell Parallel Minion what to carry across:
+
+~~~ruby
+# config/initializers/parallel_minion.rb
+ParallelMinion::Minion.register_context(
+  capture: -> { ActsAsTenant.current_tenant },
+  around:  ->(tenant, &block) { ActsAsTenant.with_tenant(tenant, &block) }
+)
+~~~
+
+`capture` runs in the thread creating the minion and returns the value to carry across. `around`
+runs inside the minion with that value, and **must yield**: the minion's task runs in the block
+it is given.
+
+For Rails `Current` attributes:
+
+~~~ruby
+ParallelMinion::Minion.register_context(
+  capture: -> { Current.attributes },
+  around:  ->(attributes, &block) { Current.set(**attributes, &block) }
+)
+~~~
+
+For a plain thread local:
+
+~~~ruby
+ParallelMinion::Minion.register_context(
+  capture: -> { Thread.current[:request_id] },
+  around:  lambda { |request_id, &block|
+    previous                     = Thread.current[:request_id]
+    Thread.current[:request_id]  = request_id
+    begin
+      block.call
+    ensure
+      Thread.current[:request_id] = previous
+    end
+  }
+)
+~~~
+
+Register handlers once at startup, in an initializer, so that every minion is covered.
+
+### How handlers behave
+
+* They run in registration order, with the first registered outermost.
+* They run on the **inline path too**, even though the context is already correct there. That
+  keeps both paths identical, so a broken handler shows up whether or not minions are enabled.
+* An exception raised by `capture` propagates out of `Minion.new`. A broken handler is a
+  configuration error, not a task failure, so it fails loudly and immediately.
+* An `around` that never yields raises, rather than leaving `#result` to return `nil` for a task
+  that never ran.
+
+## ActiveRecord scopes
+
+Scopes carried on an ActiveRecord relation are handled separately, because they live on the
+relation rather than in thread local state.
+
+List the classes whose current scope should be copied into every minion:
+
+~~~ruby
+# config/initializers/parallel_minion.rb
+Rails.application.config.after_initialize do
+  ParallelMinion::Minion.scoped_classes = [Account, Invoice]
+end
+~~~
+
+Use `after_initialize` so the models are loaded by the time they are referenced.
+
+With that in place, a scope applied around a minion is applied inside it too:
+
+~~~ruby
+Account.where(active: true).scoping do
+  # Runs as Account.where(active: true).count inside the minion
+  ParallelMinion::Minion.new(description: "Active accounts") { Account.count }.result
+end
+~~~
+
+Without registering `Account`, the same minion would return the count of **all** accounts, since
+`Account.all` in a new thread is unscoped.
+
+## Database connections
+
+Each minion that talks to the database checks out its own connection from the pool, and returns
+it when the minion finishes.
+
+This has a direct consequence for pool sizing. A request that runs five minions, each querying
+the database, can hold six connections at once, including the calling thread's. Size the pool for
+the concurrency you actually create:
+
+~~~yaml
+# config/database.yml
+production:
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5).to_i * 6 %>
+~~~
+
+A pool that is too small does not raise immediately. Minions block waiting for a connection,
+which shows up as a large `/wait` on their metrics and looks like a slow query. If splitting a
+minion makes things slower rather than faster, check the pool first.
+
+## The Rails executor
+
+Every minion runs inside `Rails.application.executor`, which the railtie configures for you.
+
+A minion runs outside the request cycle, on a thread the framework knows nothing about. The
+executor is what gives that thread the framework's own semantics: reloading is held off while the
+minion runs, and ActiveRecord connections and the query cache are managed the way Rails manages
+them for a request.
+
+Nothing needs configuring. To opt out:
+
+~~~ruby
+ParallelMinion::Minion.executor = nil
+~~~
+
+Two details worth knowing:
+
+* Only minions that run on their own thread are wrapped. An inline minion runs in the calling
+  thread, which already has the caller's execution context.
+* Context handlers registered with `register_context` run **inside** the executor. The executor
+  resets `CurrentAttributes` when it starts, so a handler carrying `Current` across has to run
+  inside it to survive. Parallel Minion arranges this for you.
+
+## Disabling minions
+
+To make every minion run in the calling thread:
+
+~~~ruby
+# config/environments/development.rb
+Rails.application.configure do
+  # Run minions in the current thread to make debugging easier
+  config.parallel_minion.enabled = false
+end
+~~~
+
+This is worth doing in development. The block runs on your own stack, so a breakpoint inside a
+minion behaves normally and backtraces make sense.
+
+It is also useful in production, for two things covered in [Tuning](https://minion.rocketjob.io/tuning.html#step-8-prove-the-benefit):
+proving what minions are actually buying you, and ruling concurrency in or out when something is
+behaving strangely.
+
+## Testing
+
+Most test suites should run with minions disabled:
+
+~~~ruby
+# config/environments/test.rb
+Rails.application.configure do
+  config.parallel_minion.enabled = false
+end
+~~~
+
+The reason is transactional tests. A test wrapped in a transaction that is rolled back afterwards
+only works if every query runs on the same connection. A minion uses a different connection, so
+it cannot see uncommitted data written by the test, and its own writes are not rolled back with
+the test's transaction.
+
+Running inline keeps everything on one connection and one thread, and results and exceptions
+behave identically.
+
+### Testing that minions themselves work
+
+Disabling minions everywhere means the threaded path is never exercised. For the code where
+concurrency actually matters, turn them back on for specific tests:
+
+~~~ruby
+def test_inventory_lookup_runs_in_parallel
+  ParallelMinion::Minion.enabled = true
+
+  result = service.process_request(request)
+
+  assert_equal expected, result
+ensure
+  ParallelMinion::Minion.enabled = false
+end
+~~~
+
+Bear in mind that these tests need committed data rather than transactional fixtures, since the
+minion runs on its own connection.
+
+This applies to context handlers too. A handler that is broken only on the threaded path will
+pass every inline test, so it is worth having at least one test per handler that runs enabled.
+
+
+---
+
+<!-- source: docs/api.md -->
+
+## Reference
+
+Complete reference for `ParallelMinion::Minion`. For a step by step introduction, start with the
+[Guide](https://minion.rocketjob.io/guide.html).
+
+## Creating a minion
+
+~~~
+ParallelMinion::Minion.new(*arguments, **options) { |*arguments| ... }
+~~~
+
+The block is required, and starts running immediately. There is no separate `start` method.
+
+Any positional arguments are passed through to the block, in the order given:
+
+~~~ruby
+ParallelMinion::Minion.new(user_id, state, description: "Count") do |user_id, state|
+  Person.where(user_id: user_id, state: state).count
+end
+~~~
+
+Arguments are passed **by reference**. Parallel Minion does not copy them. Duplicate or freeze
+anything that both threads might modify.
+
+The block is evaluated in the scope of the minion instance, not where it was written, so it
+cannot use local variables from the surrounding method. This is deliberate. A consequence is that
+the minion's own readers, such as `description`, `timeout` and `enabled?`, are visible inside the
+block.
+
+### Options
+
+#### `:description` `[String]`
+
+Names the minion. Appears in its log entries and becomes its thread name.
+
+Default: `"Minion"`
+
+#### `:timeout` `[Integer]`
+
+How many **milli-seconds** `#result` will wait before giving up.
+
+Default: `ParallelMinion::Minion::INFINITE` (wait forever)
+
+* Limits how long `#result` waits, **not** how long the minion runs. The minion keeps going after
+  the timeout and is not killed, unless `:on_timeout` is also supplied.
+* On timeout, `#result` returns `nil` and `#timed_out?` becomes true.
+* Ignored when the minion is not enabled, since the block has already finished by the time
+  `#result` is called.
+
+#### `:on_timeout` `[Class]`
+
+An exception class to raise **on the minion's own thread** when `#result` times out, ending it.
+
+Default: `nil`, the minion keeps running
+
+The `#result` call that times out still returns `nil`. Because the minion then ends with that
+exception, any later `#result` raises it.
+
+Only use this for work that is safe to abandon part way through. The exception can arrive at any
+point in the block.
+
+Has no effect when the minion is not enabled.
+
+#### `:metric` `[String]`
+
+Name of the metric to forward to Semantic Logger for this minion's execution time.
+
+Default: `nil`, no metrics are generated
+
+Supplying it generates a second metric with `/wait` appended, recording how long the calling
+thread was blocked in `#result`. See [Tuning](https://minion.rocketjob.io/tuning.html).
+
+~~~ruby
+ParallelMinion::Minion.new(
+  address,
+  description: "Cleanse address",
+  metric:      "inquiry/address_cleansing"
+) do |address|
+  AddressCleanser.call(address)
+end
+# Emits: inquiry/address_cleansing        how long the minion took
+#        inquiry/address_cleansing/wait   how long the caller waited
+~~~
+
+#### `:wait_metric` `[String]`
+
+Overrides the name of the wait metric above. Only applies when `:metric` is supplied.
+
+Default: `"#{metric}/wait"`
+
+#### `:enabled` `[Boolean]`
+
+Whether this minion runs on its own thread. When false the block runs in the calling thread,
+immediately, before `Minion.new` returns.
+
+Default: `ParallelMinion::Minion.enabled?`
+
+#### `:log_exception` `[Symbol]`
+
+How an exception raised in the block is logged.
+
+| Value      | Logged                                    |
+| :--------- | :---------------------------------------- |
+| `:full`    | Exception class, message, and backtrace    |
+| `:partial` | Exception class and message                |
+| `:off`     | Nothing                                    |
+
+Default: `:partial`
+
+#### `:on_exception_level` `[Symbol]`
+
+Log level used only when the block raises. One of `:trace`, `:debug`, `:info`, `:warn`, `:error`,
+`:fatal`.
+
+Default: `ParallelMinion::Minion.completed_log_level`
+
+Useful for a minion whose result is ignored, where a failure would otherwise go unnoticed:
+
+~~~ruby
+ParallelMinion::Minion.new(
+  customer,
+  description:        "Save customer",
+  log_exception:      :full,
+  on_exception_level: :error
+) do |customer|
+  customer.save!
+end
+~~~
+
+## Instance methods
+
+### `#result`
+
+Waits for the minion to finish and returns the block's return value.
+
+* Re-raises in the calling thread any exception raised inside the block.
+* Returns `nil` if `:timeout` elapsed first. Check `#timed_out?` to tell that apart from a block
+  that returned `nil` itself.
+* Can be called repeatedly. Later calls return the same value without waiting again.
+
+### `#timed_out?`
+
+Whether the most recent `#result` gave up waiting. Cleared by a later `#result` that does get a
+value.
+
+~~~ruby
+score = minion.result
+raise "Too slow" if minion.timed_out?
+~~~
+
+### `#working?`
+
+Whether the minion is still running. Always false when not enabled.
+
+### `#completed?`
+
+Whether the minion has finished. The exact opposite of `#working?`. Always true when not enabled.
+
+A minion blocked on a database call or an HTTP request is still `working?`, not `completed?`.
+
+### `#failed?`
+
+Whether the minion ended with an exception.
+
+### `#exception`
+
+The exception raised inside the block, or `nil`.
+
+### `#duration`
+
+How long the minion took, in **seconds**. `nil` while it is still running.
+
+Note that `:timeout` and `#time_left` are in milli-seconds, while `#duration` is in seconds.
+
+### `#time_left`
+
+Milli-seconds remaining before `#result` would give up. `0` when none is left, and `nil` when
+`:timeout` was not supplied.
+
+### `#arguments`
+
+The arguments the minion was created with.
+
+### `#description`, `#timeout`, `#enabled?`, `#metric`, `#wait_metric`, `#on_timeout`, `#log_exception`, `#on_exception_level`, `#start_time`
+
+Readers for the values the minion was created with.
+
+## Class settings
+
+### `.enabled` / `.enabled?`
+
+Whether new minions run on their own thread.
+
+~~~ruby
+ParallelMinion::Minion.enabled = false
+~~~
+
+Default: `true`
+
+Only affects minions created after it is set. Under Rails, prefer
+`config.parallel_minion.enabled`.
+
+### `.register_context(capture:, around:)`
+
+Carries application context held in thread local state into every minion. A minion's thread
+starts with empty thread local state, so `CurrentAttributes`, `ActsAsTenant`, `RequestStore` and
+any `Thread.current[...]` are otherwise missing inside it.
+
+~~~ruby
+ParallelMinion::Minion.register_context(
+  capture: -> { ActsAsTenant.current_tenant },
+  around:  ->(tenant, &block) { ActsAsTenant.with_tenant(tenant, &block) }
+)
+~~~
+
+* `capture` runs in the thread creating the minion and returns the value to carry across.
+* `around` runs inside the minion with that value and **must yield**.
+
+Handlers run in registration order, first registered outermost, and run on the inline path too.
+An exception raised by `capture` propagates out of `Minion.new`. An `around` that never yields
+raises.
+
+See [Rails](https://minion.rocketjob.io/rails.html#carrying-request-context-into-a-minion) for why this matters.
+
+### `.context_handlers` / `.context_handlers=`
+
+The registered handlers. Assign `[]` to clear them, which is mainly useful in tests.
+
+### `.scoped_classes` / `.scoped_classes=`
+
+ActiveRecord classes whose current scope is copied into every minion.
+
+~~~ruby
+ParallelMinion::Minion.scoped_classes = [Account, Invoice]
+~~~
+
+Default: `[]`
+
+Covers scopes carried on an ActiveRecord relation. Scoping that depends on thread local state
+needs `register_context` instead. See [Rails](https://minion.rocketjob.io/rails.html#activerecord-scopes).
+
+### `.executor` / `.executor=`
+
+The Rails executor each minion runs inside. Assigned automatically by the railtie.
+
+~~~ruby
+ParallelMinion::Minion.executor = nil   # opt out
+~~~
+
+Default: `nil` without Rails, `Rails.application.executor` with it
+
+### `.started_log_level` / `.completed_log_level`
+
+Log levels for the "Started" and "Completed" messages. One of `:trace`, `:debug`, `:info`,
+`:warn`, `:error`, `:fatal`.
+
+~~~ruby
+ParallelMinion::Minion.started_log_level = :debug
+~~~
+
+Default: `:info` for both
+
+Setting an invalid level raises `ArgumentError`.
+
+### `.current_scopes`
+
+The current scope for each class in `scoped_classes`. Called internally when a minion is created.
+
+## Constants
+
+### `ParallelMinion::Minion::INFINITE`
+
+The default `:timeout`, meaning wait forever. Equal to `0`.
+
+## Logging
+
+Every minion writes two log entries, "Started" and "Completed", the second carrying the duration.
+A minion that had to be waited for writes a third recording the wait.
+
+The minion's thread is named after its `:description`, so every log entry written inside the block
+is attributable to that minion. Semantic Logger tags and named tags from the calling thread are
+carried across automatically, so a request id set with `SemanticLogger.tagged` appears on the
+minion's entries too.
+
+An inline minion logs under the name `Inline` rather than `Minion`, so the two are easy to tell
+apart in a log file.
+
+
+---
+
+<!-- source: docs/upgrading.md -->
+
+## Upgrading
+
+## Upgrading to v2.0
+
+Most applications need no code changes. The minimum Ruby version has gone up, two behaviours
+changed, and one new setting is worth applying deliberately.
+
+### Ruby 3.2 is now the minimum
+
+v1.4 ran on Ruby 2.5 and later. v2.0 requires **Ruby 3.2 or greater**.
+
+**Who is affected.** Anyone on Ruby 3.1 or earlier. Bundler will refuse to install v2.0 rather
+than failing at runtime, so this surfaces immediately.
+
+**What to do.** Upgrade Ruby to 3.2 or later, or stay on v1.4. Every Ruby before 3.2 is now past
+its end of life and no longer receives security fixes.
+
+Both CRuby and JRuby are tested, on Ruby 3.2, 3.3, 3.4 and 4.0.
+
+### `#completed?` no longer reports a blocked minion as finished
+
+Previously `#completed?` was true for a thread that was dead **or sleeping**. A minion waiting on
+a database call or an HTTP request therefore looked completed while it was still running, with
+`#failed?` false and `#exception` `nil`.
+
+It is now the exact opposite of `#working?`.
+
+**Who is affected.** Code that used `#completed?` to decide whether a result was ready:
+
+~~~ruby
+# This was acting on a result the minion had not produced yet
+use(minion.result) if minion.completed? && !minion.failed?
+~~~
+
+**What to do.** In most cases, nothing: the new behaviour is what the code intended. If you were
+relying on `#completed?` returning true early, that was a bug being masked. To wait for a result,
+just call `#result`, which waits for you.
+
+### Minions now run inside the Rails executor
+
+Under Rails, every minion now runs inside `Rails.application.executor`, configured by the railtie.
+Reloading is held off while a minion runs, and ActiveRecord connections and the query cache are
+managed the way Rails manages them during a request.
+
+**Who is affected.** Rails applications. There is nothing to configure, and for most applications
+this only removes surprises rather than creating them.
+
+**What to do.** Nothing, unless you have a reason to opt out:
+
+~~~ruby
+ParallelMinion::Minion.executor = nil
+~~~
+
+### Register any context your scoping depends on
+
+This is not a behaviour change. It is a gap that has always existed and now has a fix, and it is
+worth acting on because when it bites, it fails *open*.
+
+Thread local state has never crossed into a minion. Libraries whose scope is conditional on that
+state apply **no scope at all** inside a minion, so a query that is correctly scoped in the
+calling thread can return rows it should not.
+
+**Who is affected.** Applications using `ActiveSupport::CurrentAttributes`, `ActsAsTenant`,
+`RequestStore`, or their own `Thread.current[...]` for anything a query scopes on.
+
+**What to do.** Register a handler at startup:
+
+~~~ruby
+# config/initializers/parallel_minion.rb
+ParallelMinion::Minion.register_context(
+  capture: -> { Current.attributes },
+  around:  ->(attributes, &block) { Current.set(**attributes, &block) }
+)
+~~~
+
+Note that your test suite will not tell you whether you needed this. With minions disabled the
+block runs inline, where the context is intact. See
+[Carrying request context into a minion](https://minion.rocketjob.io/rails.html#carrying-request-context-into-a-minion).
+
+### Rails 5.1 through 7.1 are no longer tested
+
+Rails 7.2, 8.0 and 8.1 are tested. Rails remains optional.
+
+### New in v2.0
+
+* **`#timed_out?`** distinguishes a `nil` returned because the minion timed out from a `nil` the
+  block itself produced. See [Step 6](https://minion.rocketjob.io/guide.html#step-6-tell-a-timeout-apart-from-a-real-nil).
+* **`register_context`** carries thread local application context into a minion, described above.
+* **`Minion.executor`** exposes the executor setting.
+
+### Fixed in v2.0
+
+* `#result` now joins the minion's thread on every path. The join was previously skipped when the
+  minion had already finished, which on JRuby and TruffleRuby could drop an exception raised
+  inside the minion, so `#result` returned instead of re-raising.
+* The cleanup that returns ActiveRecord connections to the pool now runs with asynchronous
+  interrupts masked, so an `:on_timeout` exception can no longer abort it part way and return a
+  connection to the pool mid-transaction.
+* `Minion.current_scopes` is now defined unconditionally. It was previously defined only if
+  ActiveRecord had already loaded, so an application that loaded ActiveRecord later raised
+  `NoMethodError` on every threaded minion.

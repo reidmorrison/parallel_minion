@@ -45,6 +45,10 @@ For complete documentation see: https://minion.rocketjob.io
 * [Reference](https://minion.rocketjob.io/api.html), every option and method
 * [Upgrading](https://minion.rocketjob.io/upgrading.html), moving from v1 to v2
 
+For AI assistants: [llms.txt](https://minion.rocketjob.io/llms.txt) (documentation index) and
+[llms-full.txt](https://minion.rocketjob.io/llms-full.txt) (complete documentation in one file).
+The same pages are also included as markdown in the installed gem, under `docs/`.
+
 ## When do minions help?
 
 Minions help when code is **waiting on something**: a database query, an HTTP call, an external
