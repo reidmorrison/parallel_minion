@@ -4,6 +4,7 @@
 test.rb
 *.sqlite3
 Gemfile.lock
+/coverage
 
 *.log
 

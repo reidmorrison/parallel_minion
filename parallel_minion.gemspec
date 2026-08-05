@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
   spec.summary               = "Wrap Ruby code with a minion so that it is run on a parallel thread"
   spec.files                 = Dir["lib/**/*", "LICENSE.txt", "Rakefile", "README.md"]
   spec.license               = "Apache License V2.0"
-  spec.required_ruby_version = ">= 2.5"
-  spec.add_dependency "semantic_logger", ">= 4.0"
+  spec.required_ruby_version = ">= 3.2"
+  spec.add_dependency "semantic_logger", ">= 5.0"
   spec.metadata["rubygems_mfa_required"] = "true"
 end

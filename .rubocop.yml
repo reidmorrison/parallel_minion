@@ -1,15 +1,19 @@
 AllCops:
-  TargetRubyVersion: 2.5
-  SuggestExtensions: false
+  TargetRubyVersion: 3.2
   NewCops: enable
   Exclude:
     - ".git/**/*"
     - "docs/**/*"
     - "gemfiles/*"
+    - "vendor/**/*"
 #
 # RuboCop built-in settings.
 #   For documentation on all settings see: https://docs.rubocop.org/en/stable
 #
+
+plugins:
+  - rubocop-minitest
+  - rubocop-rake
 
 # Trailing periods.
 Layout/DotPosition:
@@ -27,6 +31,10 @@ Layout/EndOfLine:
 Layout/HashAlignment:
   EnforcedHashRocketStyle: table
   EnforcedColonStyle: table
+
+# Soften limits: tests assert multiple related fields on a single log/state check
+Minitest/MultipleAssertions:
+  Max: 15
 
 # Soften limits
 Layout/LineLength:

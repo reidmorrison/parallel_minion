@@ -60,6 +60,7 @@ else
               minion = ParallelMinion::Minion.new(description: "Scope Test", log_exception: :full) do
                 Person.count
               end
+
               assert_equal 3, minion.result
             end
           end
