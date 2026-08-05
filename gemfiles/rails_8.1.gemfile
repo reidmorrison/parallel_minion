@@ -5,7 +5,7 @@ source "https://rubygems.org"
 gem "rake"
 gem "amazing_print"
 gem "appraisal"
-gem "activerecord", "~> 7.2"
+gem "activerecord", "~> 8.1.1"
 gem "sqlite3", ">= 1.4", platform: :ruby
 gem "base64"
 gem "bigdecimal"
