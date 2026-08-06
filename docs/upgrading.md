@@ -37,6 +37,7 @@ It is now the exact opposite of `#working?`.
 
 **Who is affected.** Code that used `#completed?` to decide whether a result was ready:
 
+<!-- doc-test: skip deliberately wrong example, `use` is undefined -->
 ~~~ruby
 # This was acting on a result the minion had not produced yet
 use(minion.result) if minion.completed? && !minion.failed?

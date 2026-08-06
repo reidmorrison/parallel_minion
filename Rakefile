@@ -41,11 +41,12 @@ task :llms_full do
 
   sections = LLMS_PAGES.map do |page|
     text = File.read("docs/#{page}.md").
-           sub(/\A---\n.*?\n---\n/m, "").  # Jekyll front matter
-           gsub(/^\{:.*\}\n/, "").         # kramdown attribute lines ({:toc}, {:.no_toc}, ...)
+           sub(/\A---\n.*?\n---\n/m, "").       # Jekyll front matter
+           gsub(/^\{:.*\}\n/, "").              # kramdown attribute lines ({:toc}, {:.no_toc}, ...)
            gsub(/^\* TOC\n/, "").
            gsub(/^\*\*Contents\*\*\n/, "").
-           gsub(/\n{3,}/, "\n\n").         # blank runs left behind by the strips above
+           gsub(/^<!-- doc-test:.*-->\n/, "").  # test/docs_test.rb markers
+           gsub(/\n{3,}/, "\n\n").              # blank runs left behind by the strips above
            # Site-relative page links resolve against nothing once the pages are concatenated.
            gsub(/\]\((\w+\.html(?:#[\w-]+)?)\)/, '](https://minion.rocketjob.io/\1)')
     "<!-- source: docs/#{page}.md -->\n\n#{text.strip}\n"

@@ -15,6 +15,7 @@ Each step adds one idea, so work through them in order the first time.
 
 Every example runs as written. If you want to follow along in `irb`:
 
+<!-- doc-test: skip adds a $stdout appender, which would interleave with the test output -->
 ~~~ruby
 require "parallel_minion"
 require "semantic_logger"
@@ -211,6 +212,7 @@ end
 
 This matters whenever something is decided on the result. Code like this:
 
+<!-- doc-test: skip deliberately wrong example, `approve!` is undefined -->
 ~~~ruby
 # Wrong: a timeout silently becomes a score of zero
 approve! if minion.result.to_i < THRESHOLD
@@ -224,6 +226,7 @@ check `#timed_out?`, or use `:on_timeout` in the next step.
 Sometimes letting the minion carry on is wrong, and you want it to stop. Pass an exception class
 as `:on_timeout` and it is raised **on the minion's own thread**, ending it:
 
+<!-- doc-test: skip raises Timeout::Error by design -->
 ~~~ruby
 minion = ParallelMinion::Minion.new(description: "Slow supplier", timeout: 500, on_timeout: Timeout::Error) do
   sleep 5

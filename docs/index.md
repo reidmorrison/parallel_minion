@@ -89,6 +89,7 @@ milliseconds is a candidate.
 
 Add it to your `Gemfile`:
 
+<!-- doc-test: skip Gemfile fragment, not executable Ruby -->
 ~~~ruby
 gem "parallel_minion"
 ~~~
