@@ -18,6 +18,7 @@ one thing you should configure yourself.
 
 Add the gem to your `Gemfile`:
 
+<!-- doc-test: skip Gemfile fragment, not executable Ruby -->
 ~~~ruby
 gem "parallel_minion"
 ~~~
@@ -30,6 +31,7 @@ That is all. The railtie is loaded automatically and does two things:
 `config.parallel_minion` **is** the `ParallelMinion::Minion` class, so anything you can set on the
 class you can set through the configuration:
 
+<!-- doc-test: skip needs a Rails application -->
 ~~~ruby
 # config/environments/development.rb
 Rails.application.configure do
@@ -131,6 +133,7 @@ relation rather than in thread local state.
 
 List the classes whose current scope should be copied into every minion:
 
+<!-- doc-test: skip needs a Rails application -->
 ~~~ruby
 # config/initializers/parallel_minion.rb
 Rails.application.config.after_initialize do
@@ -198,6 +201,7 @@ Two details worth knowing:
 
 To make every minion run in the calling thread:
 
+<!-- doc-test: skip needs a Rails application -->
 ~~~ruby
 # config/environments/development.rb
 Rails.application.configure do
@@ -217,6 +221,7 @@ behaving strangely.
 
 Most test suites should run with minions disabled:
 
+<!-- doc-test: skip needs a Rails application -->
 ~~~ruby
 # config/environments/test.rb
 Rails.application.configure do

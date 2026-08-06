@@ -36,6 +36,7 @@ Under Rails, with the
 [rails_semantic_logger](https://github.com/reidmorrison/rails_semantic_logger) gem, use
 `Rails.logger`:
 
+<!-- doc-test: skip needs rails_semantic_logger to define Rails.logger -->
 ~~~ruby
 Rails.logger.measure_info("Counting rows") do
   Person.where(state: "FL").count
@@ -44,6 +45,7 @@ end
 
 Outside Rails, set up a logger first:
 
+<!-- doc-test: skip adds a file appender, which would leave a stray development.log -->
 ~~~ruby
 require "semantic_logger"
 
@@ -111,6 +113,7 @@ via ordinary log appenders, Elasticsearch and Splunk.
 
 Registering one is a single line at startup, for example:
 
+<!-- doc-test: skip needs a live statsd backend -->
 ~~~ruby
 SemanticLogger.add_appender(metric: :statsd, url: "udp://localhost:8125")
 ~~~
