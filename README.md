@@ -35,18 +35,18 @@ sum of both.
 
 ## Documentation
 
-For complete documentation see: https://minion.rocketjob.io
+For complete documentation see: https://minion.reidmorrison.com
 
-* [Guide](https://minion.rocketjob.io/guide.html), a step by step introduction
-* [Tuning](https://minion.rocketjob.io/tuning.html), metrics and dashboards for
+* [Guide](https://minion.reidmorrison.com/guide.html), a step by step introduction
+* [Tuning](https://minion.reidmorrison.com/tuning.html), metrics and dashboards for
   dividing up the work
-* [Rails](https://minion.rocketjob.io/rails.html), executor, request context and
+* [Rails](https://minion.reidmorrison.com/rails.html), executor, request context and
   ActiveRecord scopes
-* [Reference](https://minion.rocketjob.io/api.html), every option and method
-* [Upgrading](https://minion.rocketjob.io/upgrading.html), moving from v1 to v2
+* [Reference](https://minion.reidmorrison.com/api.html), every option and method
+* [Upgrading](https://minion.reidmorrison.com/upgrading.html), moving from v1 to v2
 
-For AI assistants: [llms.txt](https://minion.rocketjob.io/llms.txt) (documentation index) and
-[llms-full.txt](https://minion.rocketjob.io/llms-full.txt) (complete documentation in one file).
+For AI assistants: [llms.txt](https://minion.reidmorrison.com/llms.txt) (documentation index) and
+[llms-full.txt](https://minion.reidmorrison.com/llms-full.txt) (complete documentation in one file).
 The same pages are also included as markdown in the installed gem, under `docs/`.
 
 ## When do minions help?

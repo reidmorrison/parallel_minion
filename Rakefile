@@ -34,9 +34,9 @@ task :llms_full do
     > Parallel Minion runs a block of Ruby code on another thread and hands back its result when the
     > caller asks for it, so independent slow steps overlap instead of running one after another.
 
-    This file concatenates every page of https://minion.rocketjob.io for consumption by AI assistants.
+    This file concatenates every page of https://minion.reidmorrison.com for consumption by AI assistants.
     It is generated from the markdown sources in docs/ by `bundle exec rake llms_full`; do not edit it directly.
-    A per-page index is available at https://minion.rocketjob.io/llms.txt
+    A per-page index is available at https://minion.reidmorrison.com/llms.txt
   HEADER
 
   sections = LLMS_PAGES.map do |page|
@@ -48,7 +48,7 @@ task :llms_full do
            gsub(/^<!-- doc-test:.*-->\n/, "").  # test/docs_test.rb markers
            gsub(/\n{3,}/, "\n\n").              # blank runs left behind by the strips above
            # Site-relative page links resolve against nothing once the pages are concatenated.
-           gsub(/\]\((\w+\.html(?:#[\w-]+)?)\)/, '](https://minion.rocketjob.io/\1)')
+           gsub(/\]\((\w+\.html(?:#[\w-]+)?)\)/, '](https://minion.reidmorrison.com/\1)')
     "<!-- source: docs/#{page}.md -->\n\n#{text.strip}\n"
   end
 

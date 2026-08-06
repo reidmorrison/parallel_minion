@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `parallel_minion` is a small Ruby gem that wraps a block of code in a "Minion" so it runs on a
 parallel thread, re-raising any exception in the caller's thread when the result is requested.
-See `docs/` (published to https://minion.rocketjob.io, via the `CNAME` in that directory) for
+See `docs/` (published to https://minion.reidmorrison.com, via the `CNAME` in that directory) for
 user-facing docs. Pages: Home, Guide, Tuning, Rails, Reference, Upgrading. The nav is generated
 from the `nav_items` list in `docs/_layouts/default.html`, so a new page must be added there too.
 

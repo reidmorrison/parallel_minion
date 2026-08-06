@@ -10,8 +10,8 @@ Key facts:
 - The block runs under `instance_exec`, so `self` inside it is the Minion. Local variables from the enclosing scope are still visible, but a method call on the enclosing object raises `NameError` and an instance variable reads as `nil`. Pass data in as arguments to `Minion.new` instead.
 - A new thread starts with empty thread local state. Under Rails, register a handler with `Minion.register_context(capture:, around:)` for anything scoping depends on (`ActiveSupport::CurrentAttributes`, `ActsAsTenant`, `RequestStore`). Without it, conditional scoping fails **open** inside a minion.
 - Rails is optional. When present, a railtie runs each minion inside `Rails.application.executor` and copies ActiveRecord scopes for the classes in `Minion.scoped_classes`.
-- Human-readable documentation lives at https://minion.rocketjob.io. The links below point at the raw markdown sources of the same pages.
-- The complete documentation concatenated into a single file: https://minion.rocketjob.io/llms-full.txt
+- Human-readable documentation lives at https://minion.reidmorrison.com. The links below point at the raw markdown sources of the same pages.
+- The complete documentation concatenated into a single file: https://minion.reidmorrison.com/llms-full.txt
 - Source code: https://github.com/reidmorrison/parallel_minion
 
 ## Documentation

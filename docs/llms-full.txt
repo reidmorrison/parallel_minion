@@ -3,9 +3,9 @@
 > Parallel Minion runs a block of Ruby code on another thread and hands back its result when the
 > caller asks for it, so independent slow steps overlap instead of running one after another.
 
-This file concatenates every page of https://minion.rocketjob.io for consumption by AI assistants.
+This file concatenates every page of https://minion.reidmorrison.com for consumption by AI assistants.
 It is generated from the markdown sources in docs/ by `bundle exec rake llms_full`; do not edit it directly.
-A per-page index is available at https://minion.rocketjob.io/llms.txt
+A per-page index is available at https://minion.reidmorrison.com/llms.txt
 
 
 ---
@@ -61,7 +61,7 @@ background and finishes its work.
 
 Every minion logs how long it took, and how long the calling thread had to wait for it. Turn on
 metrics and that data drives dashboards, which is what turns dividing up the work from guesswork
-into something you can measure. See [Tuning](https://minion.rocketjob.io/tuning.html).
+into something you can measure. See [Tuning](https://minion.reidmorrison.com/tuning.html).
 
 ## When do minions help?
 
@@ -114,7 +114,7 @@ Parallel Minion depends only on
 timing and metrics.
 
 Under Rails, that is all that is needed. A railtie wires up the configuration and the Rails
-executor for you. See the [Rails guide](https://minion.rocketjob.io/rails.html).
+executor for you. See the [Rails guide](https://minion.reidmorrison.com/rails.html).
 
 ## Your first minion
 
@@ -137,7 +137,7 @@ person_count = Person.where(state: "FL").count
 inventory = inventory_minion.result
 ~~~
 
-Three things to notice, all covered step by step in the [Guide](https://minion.rocketjob.io/guide.html):
+Three things to notice, all covered step by step in the [Guide](https://minion.reidmorrison.com/guide.html):
 
 1. **The minion is created and starts immediately.** There is no separate `start` call.
 2. **`product_id` is passed in as an argument**, not captured from the surrounding code. That is
@@ -147,14 +147,14 @@ Three things to notice, all covered step by step in the [Guide](https://minion.r
 
 ## Where to go next
 
-* **[Guide](https://minion.rocketjob.io/guide.html)** builds up from a single minion to a request served by several, one
+* **[Guide](https://minion.reidmorrison.com/guide.html)** builds up from a single minion to a request served by several, one
   step at a time. Start here.
-* **[Tuning](https://minion.rocketjob.io/tuning.html)** covers measuring minions in production, and using metrics and
+* **[Tuning](https://minion.reidmorrison.com/tuning.html)** covers measuring minions in production, and using metrics and
   dashboards to work out how to divide up the work.
-* **[Rails](https://minion.rocketjob.io/rails.html)** covers the executor, carrying request context into a minion,
+* **[Rails](https://minion.reidmorrison.com/rails.html)** covers the executor, carrying request context into a minion,
   ActiveRecord scopes, and testing.
-* **[Reference](https://minion.rocketjob.io/api.html)** documents every option and method.
-* **[Upgrading](https://minion.rocketjob.io/upgrading.html)** covers moving from v1 to v2.
+* **[Reference](https://minion.reidmorrison.com/api.html)** documents every option and method.
+* **[Upgrading](https://minion.reidmorrison.com/upgrading.html)** covers moving from v1 to v2.
 
 ## Compatibility
 
@@ -525,7 +525,7 @@ Down from 3,770 ms to 1,800 ms, with the same code doing the same work.
 * **Balance beats quantity.** The aim is for everything to finish at about the same moment.
 
 Working out that balance is a measurement problem, not a guessing one, which is what
-[Tuning](https://minion.rocketjob.io/tuning.html) is about.
+[Tuning](https://minion.reidmorrison.com/tuning.html) is about.
 
 ## Step 10: Turn minions off while debugging
 
@@ -547,7 +547,7 @@ ParallelMinion::Minion.enabled = false
 ~~~
 
 Under Rails, use the configuration setting instead, as covered in the
-[Rails guide](https://minion.rocketjob.io/rails.html#disabling-minions).
+[Rails guide](https://minion.reidmorrison.com/rails.html#disabling-minions).
 
 Because `:timeout` only ever limited how long `#result` waited, and an inline minion has already
 finished by then, `:timeout` and `:on_timeout` have no effect when disabled.
@@ -572,9 +572,9 @@ or just call `#result` and let it raise.
 
 ## Next steps
 
-* **[Tuning](https://minion.rocketjob.io/tuning.html)** for measuring minions and dividing the work using real numbers.
-* **[Rails](https://minion.rocketjob.io/rails.html)** for the executor, request context, ActiveRecord scopes, and testing.
-* **[Reference](https://minion.rocketjob.io/api.html)** for every option and method.
+* **[Tuning](https://minion.reidmorrison.com/tuning.html)** for measuring minions and dividing the work using real numbers.
+* **[Rails](https://minion.reidmorrison.com/rails.html)** for the executor, request context, ActiveRecord scopes, and testing.
+* **[Reference](https://minion.reidmorrison.com/api.html)** for every option and method.
 
 
 ---
@@ -1018,7 +1018,7 @@ end
 This is worth doing in development. The block runs on your own stack, so a breakpoint inside a
 minion behaves normally and backtraces make sense.
 
-It is also useful in production, for two things covered in [Tuning](https://minion.rocketjob.io/tuning.html#step-8-prove-the-benefit):
+It is also useful in production, for two things covered in [Tuning](https://minion.reidmorrison.com/tuning.html#step-8-prove-the-benefit):
 proving what minions are actually buying you, and ruling concurrency in or out when something is
 behaving strangely.
 
@@ -1072,7 +1072,7 @@ pass every inline test, so it is worth having at least one test per handler that
 ## Reference
 
 Complete reference for `ParallelMinion::Minion`. For a step by step introduction, start with the
-[Guide](https://minion.rocketjob.io/guide.html).
+[Guide](https://minion.reidmorrison.com/guide.html).
 
 ## Creating a minion
 
@@ -1139,7 +1139,7 @@ Name of the metric to forward to Semantic Logger for this minion's execution tim
 Default: `nil`, no metrics are generated
 
 Supplying it generates a second metric with `/wait` appended, recording how long the calling
-thread was blocked in `#result`. See [Tuning](https://minion.rocketjob.io/tuning.html).
+thread was blocked in `#result`. See [Tuning](https://minion.reidmorrison.com/tuning.html).
 
 ~~~ruby
 ParallelMinion::Minion.new(
@@ -1291,7 +1291,7 @@ Handlers run in registration order, first registered outermost, and run on the i
 An exception raised by `capture` propagates out of `Minion.new`. An `around` that never yields
 raises.
 
-See [Rails](https://minion.rocketjob.io/rails.html#carrying-request-context-into-a-minion) for why this matters.
+See [Rails](https://minion.reidmorrison.com/rails.html#carrying-request-context-into-a-minion) for why this matters.
 
 ### `.context_handlers` / `.context_handlers=`
 
@@ -1308,7 +1308,7 @@ ParallelMinion::Minion.scoped_classes = [Account, Invoice]
 Default: `[]`
 
 Covers scopes carried on an ActiveRecord relation. Scoping that depends on thread local state
-needs `register_context` instead. See [Rails](https://minion.rocketjob.io/rails.html#activerecord-scopes).
+needs `register_context` instead. See [Rails](https://minion.reidmorrison.com/rails.html#activerecord-scopes).
 
 ### `.executor` / `.executor=`
 
@@ -1438,7 +1438,7 @@ ParallelMinion::Minion.register_context(
 
 Note that your test suite will not tell you whether you needed this. With minions disabled the
 block runs inline, where the context is intact. See
-[Carrying request context into a minion](https://minion.rocketjob.io/rails.html#carrying-request-context-into-a-minion).
+[Carrying request context into a minion](https://minion.reidmorrison.com/rails.html#carrying-request-context-into-a-minion).
 
 ### Rails 5.1 through 7.1 are no longer tested
 
@@ -1447,7 +1447,7 @@ Rails 7.2, 8.0 and 8.1 are tested. Rails remains optional.
 ### New in v2.0
 
 * **`#timed_out?`** distinguishes a `nil` returned because the minion timed out from a `nil` the
-  block itself produced. See [Step 6](https://minion.rocketjob.io/guide.html#step-6-tell-a-timeout-apart-from-a-real-nil).
+  block itself produced. See [Step 6](https://minion.reidmorrison.com/guide.html#step-6-tell-a-timeout-apart-from-a-real-nil).
 * **`register_context`** carries thread local application context into a minion, described above.
 * **`Minion.executor`** exposes the executor setting.
 
