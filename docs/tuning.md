@@ -119,7 +119,7 @@ SemanticLogger.add_appender(metric: :statsd, url: "udp://localhost:8125")
 ~~~
 
 The full list of backends, and their individual options, are covered in the
-[Semantic Logger metrics documentation](https://logger.rocketjob.io/metrics.html). Everything
+[Semantic Logger metrics documentation](https://logger.reidmorrison.com/metrics.html). Everything
 below applies whichever one you use.
 
 Build a dashboard with, per minion:

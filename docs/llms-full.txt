@@ -110,7 +110,7 @@ gem install parallel_minion
 ~~~
 
 Parallel Minion depends only on
-[Semantic Logger](https://logger.rocketjob.io), which it uses for its logging and its built-in
+[Semantic Logger](https://logger.reidmorrison.com), which it uses for its logging and its built-in
 timing and metrics.
 
 Under Rails, that is all that is needed. A railtie wires up the configuration and the Rails
@@ -689,7 +689,7 @@ SemanticLogger.add_appender(metric: :statsd, url: "udp://localhost:8125")
 ~~~
 
 The full list of backends, and their individual options, are covered in the
-[Semantic Logger metrics documentation](https://logger.rocketjob.io/metrics.html). Everything
+[Semantic Logger metrics documentation](https://logger.reidmorrison.com/metrics.html). Everything
 below applies whichever one you use.
 
 Build a dashboard with, per minion:

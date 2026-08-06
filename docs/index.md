@@ -107,7 +107,7 @@ gem install parallel_minion
 ~~~
 
 Parallel Minion depends only on
-[Semantic Logger](https://logger.rocketjob.io), which it uses for its logging and its built-in
+[Semantic Logger](https://logger.reidmorrison.com), which it uses for its logging and its built-in
 timing and metrics.
 
 Under Rails, that is all that is needed. A railtie wires up the configuration and the Rails

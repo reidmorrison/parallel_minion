@@ -49,7 +49,7 @@ module ParallelMinion
     #     performed on the same database connection.
     # - Production:
     #     Batch processing in Rocket Job where throughput is more important than latency.
-    #       http://rocketjob.io
+    #       https://rocketjob.reidmorrison.com
     class << self
       attr_writer :enabled
     end
