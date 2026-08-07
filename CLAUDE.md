@@ -99,15 +99,16 @@ non-closing over its scope, in code comments or docs.
 
 ### What gets carried across the thread boundary
 
-A new thread starts with empty thread local state, so nothing propagates automatically. Four things
+A new thread starts with empty thread local state, so nothing propagates automatically. Five things
 are captured in the calling thread and rebuilt inside the minion:
 
 1. SemanticLogger tags (`capture_tags`)
 2. SemanticLogger named tags (`capture_named_tags`)
 3. ActiveRecord scopes for `Minion.scoped_classes` (`self.class.current_scopes`)
-4. Application context registered via `Minion.register_context` (`capture_contexts`)
+4. The Rails executor, `Minion.executor`, into `@executor`
+5. Application context registered via `Minion.register_context` (`capture_contexts`)
 
-The first three are captured in `run`, so they only apply to the threaded path. Contexts are
+The first four are captured in `run`, so they only apply to the threaded path. Contexts are
 captured in `initialize` instead, so that capture always happens in the calling thread, applies to
 both paths, and a handler raising during capture surfaces from `Minion.new` rather than as a task
 failure. `run_in_context` nests one `around` per handler, first registered outermost, and raises if
@@ -143,6 +144,12 @@ Two ordering constraints, both load-bearing:
 - `#result` waits inside `interlock.permit_concurrent_loads`. The waiting thread is usually in the
   executor itself holding the interlock, and a minion that autoloads while the caller blocks on it
   deadlocks. Real on Rails 7.2, a no-op from 8.1 where Zeitwerk retired the loading interlock.
+
+`with_executor` uses `@executor`, captured by `run`, and must not read `Minion.executor` itself. A
+new thread reaches the minion body whenever it is first scheduled, which can be well after
+`Minion.new` returned, so reading the class setting in there binds the minion to whatever executor
+happens to be set at that later moment. That surfaced as a rare CI failure where a fire-and-forget
+minion from an earlier test fired the *next* test's `to_complete` hook.
 
 Only the threaded path is wrapped. Inline minions run in the caller's thread, which already has the
 caller's execution context, and wrapping it would reset that thread's `CurrentAttributes` when the

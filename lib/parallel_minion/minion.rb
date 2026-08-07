@@ -339,6 +339,8 @@ module ParallelMinion
       @on_exception_level = on_exception_level
       @enabled            = enabled
       @on_timeout         = on_timeout
+      # Only the threaded path runs in an executor, `run` fills this in from the class setting
+      @executor           = nil
 
       @wait_metric        = wait_metric || "#{metric}/wait" if @metric
 
@@ -478,6 +480,12 @@ module ParallelMinion
       # Captures scopes from current thread. Only applicable for AR models
       scopes     = self.class.current_scopes if defined?(ActiveRecord::Base)
 
+      # Captured here, in the calling thread, rather than read inside the new thread. The new
+      # thread reads it at whatever point it is first scheduled, which may be long after
+      # `Minion.new` returned, so reading it there lets a minion be swept into an executor
+      # that was configured after it was created.
+      @executor  = self.class.executor
+
       @thread = Thread.new(*arguments) do
         Thread.current.name = "#{description}-#{Thread.current.object_id}"
 
@@ -542,9 +550,11 @@ module ParallelMinion
     # The executor has to be the outermost wrapper around the task. It resets
     # `CurrentAttributes` both when it runs and when it completes, so context handlers must
     # run inside it or their values are wiped before the task ever sees them.
+    #
+    # Uses the executor captured by `run` when the Minion was created, not whatever is set
+    # now, so which executor a Minion belongs to is decided in the calling thread.
     def with_executor(&block)
-      executor = self.class.executor
-      executor ? executor.wrap(&block) : block.call
+      @executor ? @executor.wrap(&block) : block.call
     end
 
     # Wait for the Minion without holding Rails back from reloading in the meantime.
@@ -557,7 +567,7 @@ module ParallelMinion
     # of Rails 8.1, where the loading interlock went away with the move to Zeitwerk, and
     # does real work on the Rails versions before it.
     def permit_concurrent_loads(&block)
-      return block.call unless self.class.executor && defined?(ActiveSupport::Dependencies)
+      return block.call unless @executor && defined?(ActiveSupport::Dependencies)
 
       ActiveSupport::Dependencies.interlock.permit_concurrent_loads(&block)
     end
