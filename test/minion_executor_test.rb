@@ -57,6 +57,20 @@ class MinionExecutorTest < Minitest::Test
       assert_equal %i[complete], drain(events)
     end
 
+    it "use the executor configured when the minion was created, not a later one" do
+      events = Queue.new
+      executor.to_complete { events << :complete }
+
+      # A new thread does not necessarily reach the body of the minion before `Minion.new`
+      # returns. Reading the executor setting in there rather than in the calling thread
+      # swept a minion created without an executor into one configured moments later.
+      minion = ParallelMinion::Minion.new(description: "Test") { 42 }
+      ParallelMinion::Minion.executor = executor
+
+      assert_equal 42, minion.result
+      assert_empty drain(events)
+    end
+
     it "apply context handlers inside the executor" do
       # Rails resets CurrentAttributes from both executor hooks, so a handler applied
       # outside the executor would have its value wiped before the task ever saw it.
