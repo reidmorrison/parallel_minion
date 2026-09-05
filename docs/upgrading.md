@@ -1,9 +1,11 @@
 ---
 layout: default
+title: Upgrading
+description: >-
+  Moving from v1.4 to v2.0: the Ruby 3.2 minimum, the #completed? change,
+  minions running inside the Rails executor, and registering context handlers.
 ---
 
-## Upgrading
-{:.no_toc}
 
 **Contents**
 

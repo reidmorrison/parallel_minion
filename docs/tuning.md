@@ -1,9 +1,12 @@
 ---
 layout: default
+title: Tuning
+description: >-
+  Measuring before parallelizing, naming a metric on each minion, reading the
+  duration and wait numbers on a dashboard, and splitting the minion that sets
+  the floor.
 ---
 
-## Tuning
-{:.no_toc}
 
 **Contents**
 

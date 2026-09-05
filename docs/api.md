@@ -1,9 +1,11 @@
 ---
 layout: default
+title: Reference
+description: >-
+  Every constructor option, instance method and class setting on
+  ParallelMinion::Minion, plus what a minion logs.
 ---
 
-## Reference
-{:.no_toc}
 
 **Contents**
 

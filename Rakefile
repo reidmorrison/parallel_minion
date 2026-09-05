@@ -7,7 +7,7 @@ require_relative "lib/parallel_minion/version"
 
 GEM_FILE = "parallel_minion-#{ParallelMinion::VERSION}.gem".freeze
 
-# Page order for docs/llms-full.txt, matching the site nav in docs/_layouts/default.html.
+# Page order for docs/llms-full.txt, matching the site nav in docs/_config.yml.
 LLMS_PAGES = %w[index guide tuning rails api upgrading].freeze
 
 desc "Build the gem"
@@ -40,7 +40,19 @@ task :llms_full do
   HEADER
 
   sections = LLMS_PAGES.map do |page|
-    text = File.read("docs/#{page}.md").
+    raw = File.read("docs/#{page}.md")
+
+    # The page heading lives in front matter, which the shared docs theme renders
+    # as the page h1. Front matter is stripped below, so lift the heading back out
+    # and re-emit it; without this every section here would open straight into body
+    # text with no indication of which page it came from. `heading` wins over
+    # `title` where a page sets both, the same precedence the theme uses.
+    front_matter = raw[/\A---\n(.*?)\n---\n/m, 1].to_s
+    heading      = %w[heading title].
+                   filter_map { |key| front_matter[/^#{key}:[ \t]*(.+)$/, 1] }.
+                   first.to_s.strip.delete_prefix('"').delete_suffix('"')
+
+    text = raw.
            sub(/\A---\n.*?\n---\n/m, "").       # Jekyll front matter
            gsub(/^\{:.*\}\n/, "").              # kramdown attribute lines ({:toc}, {:.no_toc}, ...)
            gsub(/^\* TOC\n/, "").
@@ -49,7 +61,9 @@ task :llms_full do
            gsub(/\n{3,}/, "\n\n").              # blank runs left behind by the strips above
            # Site-relative page links resolve against nothing once the pages are concatenated.
            gsub(/\]\((\w+\.html(?:#[\w-]+)?)\)/, '](https://minion.reidmorrison.com/\1)')
-    "<!-- source: docs/#{page}.md -->\n\n#{text.strip}\n"
+
+    body = heading.empty? ? text.strip : "## #{heading}\n\n#{text.strip}"
+    "<!-- source: docs/#{page}.md -->\n\n#{body}\n"
   end
 
   File.write("docs/llms-full.txt", ([header] + sections).join("\n\n---\n\n"))

@@ -1,3 +1,63 @@
+# Shared look and feel comes from reidmorrison/rm-docs-theme, which supplies the
+# layout, the sidebar, the stylesheet and the syntax sheet. This repo keeps only
+# its own content: the markdown pages and docs/images.
+#
+# Pinned to a major tag. v1 moves as the theme is fixed, so this site picks up
+# changes on its next build; breaking changes go to v2 and are opted into here.
+remote_theme: reidmorrison/rm-docs-theme@v1
+
 markdown: kramdown
 kramdown:
+  # Every page carries a {:toc} block, which the theme styles as a contents
+  # card. Two levels deep: the reference page has forty h3 sections and listing
+  # all of them would bury the h2 structure they sit under.
   toc_levels: "2..3"
+
+plugins:
+  # GitHub Pages enables this on its own, but a local `bundle exec jekyll
+  # build` does not: Jekyll only auto-requires gems in the :jekyll_plugins
+  # bundler group, so without it the theme is silently skipped and every page
+  # reports "Layout 'default' does not exist".
+  - jekyll-remote-theme
+
+# Read by the theme's masthead, head and footer. The theme ships no defaults:
+# Jekyll exposes only _layouts, _includes, _sass and assets from a theme, so
+# every site declares this block in full.
+project:
+  name: Parallel Minion
+  tagline: Slow steps, side by side.
+  github: reidmorrison/parallel_minion
+  gem: parallel_minion
+  license: Apache 2.0 License
+
+  # Carried over from the layout this replaces, which hard-coded one title and
+  # one description for all six pages. `seo_title` is the home page's <title>;
+  # every other page builds its own from front matter.
+  seo_title: "Parallel Minion. Cut request latency in Ruby and Rails by running slow steps in parallel."
+  description: >-
+    Parallel Minion cuts request latency in Ruby and Rails by running slow steps
+    at the same time. Wrap a block in a minion and collect its result later,
+    with exceptions re-raised in the calling thread.
+
+# The sidebar, replacing the row of header buttons. Order within a group is
+# reading order, not alphabetical.
+nav:
+  - group: Start here
+    items:
+      - { page: index.html,     label: Overview }
+      - { page: guide.html,     label: Guide }
+
+  - group: In production
+    items:
+      - { page: tuning.html,    label: Tuning }
+      - { page: rails.html,     label: Rails }
+
+  - group: Reference
+    items:
+      - { page: api.html,       label: Reference }
+      - { page: upgrading.html, label: Upgrading }
+
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor

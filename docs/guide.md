@@ -1,9 +1,12 @@
 ---
 layout: default
+title: Guide
+description: >-
+  The step by step manual, building from one minion to several: collecting
+  results, passing arguments, exception handling, timeouts, and running with
+  minions turned off.
 ---
 
-## Guide
-{:.no_toc}
 
 **Contents**
 
