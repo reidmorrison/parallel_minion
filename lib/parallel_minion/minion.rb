@@ -493,7 +493,7 @@ module ParallelMinion
         SemanticLogger.tagged(*tags) do
           SemanticLogger.named_tagged(named_tags) do
             logger.public_send(self.class.started_log_level, "Started #{description}")
-            # rubocop:disable Lint/RescueException
+            # rubocop:disable-next Lint/RescueException
             begin
               proc = proc { with_executor { run_in_context(contexts) { run_in_scope(scopes, &block) } } }
               logger.measure(
@@ -510,7 +510,6 @@ module ParallelMinion
             ensure
               cleanup
             end
-            # rubocop:enable Lint/RescueException
           end
         end
       end

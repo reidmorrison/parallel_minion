@@ -80,11 +80,10 @@ RuboCop::RakeTask.new(:rubocop)
 
 # By default run tests against all appraisals, plus rubocop once at the top level.
 # Under `appraisal ... rake` the appraisal is already chosen, so only the tests run.
-# rubocop:disable Rake/DuplicateTask -- only one branch is ever loaded, so this is not a real duplicate
+# rubocop:disable-next Rake/DuplicateTask -- only one branch is ever loaded, so this is not a real duplicate
 if ENV["APPRAISAL_INITIALIZED"]
   task default: :test
 else
   require "appraisal"
   task default: %i[appraisal rubocop]
 end
-# rubocop:enable Rake/DuplicateTask
