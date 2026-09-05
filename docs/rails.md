@@ -1,9 +1,11 @@
 ---
 layout: default
+title: Rails
+description: >-
+  Rails integration: the railtie, carrying request context into a minion,
+  ActiveRecord scopes, database connections, the Rails executor, and testing.
 ---
 
-## Rails
-{:.no_toc}
 
 **Contents**
 

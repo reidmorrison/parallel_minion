@@ -7,18 +7,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `parallel_minion` is a small Ruby gem that wraps a block of code in a "Minion" so it runs on a
 parallel thread, re-raising any exception in the caller's thread when the result is requested.
 See `docs/` (published to https://minion.reidmorrison.com, via the `CNAME` in that directory) for
-user-facing docs. Pages: Home, Guide, Tuning, Rails, Reference, Upgrading. The nav is generated
-from the `nav_items` list in `docs/_layouts/default.html`, so a new page must be added there too.
+user-facing docs. Pages: Overview, Guide, Tuning, Rails, Reference, Upgrading.
 
 ## Docs
+
+**The look and feel is not in this repo.** `docs/_config.yml` sets
+`remote_theme: reidmorrison/rm-docs-theme@v1`, and the layout, stylesheet, sidebar and syntax
+highlighting all come from there, shared with the other gem doc sites. This repo holds only its
+content: the markdown pages and `docs/images`. **Do not add a `docs/_layouts`, `docs/stylesheets`
+or `docs/javascripts` directory**: they were deleted deliberately, because six gem repos each
+carried a near-identical copy of the same theme and the copies had drifted. A styling change
+belongs in `rm-docs-theme`, where it reaches every doc site at once. `v1` is a moving major tag, so
+theme fixes arrive on the next build; breaking changes go to `v2` and are opted into by editing the
+pin. `jekyll-remote-theme` must stay in `plugins`: GitHub Pages enables it on its own, but a local
+build does not, and without it every page silently renders with no layout. Preview against a local
+theme checkout with `~/src/rm-docs-theme/bin/preview ~/src/parallel_minion/docs`.
+
+**A page's heading lives in its front matter**, not in a heading at the top of the markdown; the
+theme renders it as the page's `h1`. `title` is the browser title and the default heading,
+`heading` overrides the h1 where the two should differ, and `description` is the page's meta
+description. `index.md` sets `heading` only, so the home page keeps the tuned SEO `<title>` from
+`_config.yml`. Adding or renaming a page means editing the `nav` block in `docs/_config.yml` as
+well as `LLMS_PAGES` and `docs/llms.txt`.
 
 The site also serves two files for AI assistants: `docs/llms.txt`, a hand-maintained index of the
 pages (update it when adding or renaming one), and `docs/llms-full.txt`, every page concatenated.
 **After editing any `docs/*.md` page, re-run `bundle exec rake llms_full`** and commit the result;
 never edit `llms-full.txt` by hand. A new page also goes in `LLMS_PAGES` in the `Rakefile`, which
-sets the order; the task raises if a `docs/*.md` page is missing from it. The
-`docs/*.md` sources also ship inside the gem package (see `spec.files` in the gemspec) so coding
-agents inside applications can read them locally.
+sets the order; the task raises if a `docs/*.md` page is missing from it. That task lifts each
+page's heading out of its front matter, so a page that sets neither `heading` nor `title` lands in
+`llms-full.txt` with no heading at all. The `docs/*.md` sources also ship inside the gem package
+(see `spec.files` in the gemspec) so coding agents inside applications can read them locally.
 
 `AGENTS.md` exists only to point other agents at this file. Keep guidance here, not there.
 

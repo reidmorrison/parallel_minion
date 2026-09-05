@@ -1,9 +1,8 @@
 ---
 layout: default
+heading: What is Parallel Minion?
 ---
 
-## What is Parallel Minion?
-{:.no_toc}
 
 **Contents**
 

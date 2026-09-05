@@ -50,11 +50,13 @@ Layout/SpaceInsideHashLiteralBraces:
 Metrics/AbcSize:
   Max: 40
 
-# Support long block lengths for tests
+# Support long block lengths for tests, and for rake task blocks, which are one
+# coherent script each and read worse when split up to satisfy a line count.
 Metrics/BlockLength:
   Exclude:
     - "test/**/*"
     - "**/*/cli.rb"
+    - "Rakefile"
   AllowedMethods:
     - "aasm"
     - "included"
