@@ -39,23 +39,16 @@ project:
     at the same time. Wrap a block in a minion and collect its result later,
     with exceptions re-raised in the calling thread.
 
-# The sidebar, replacing the row of header buttons. Order within a group is
-# reading order, not alphabetical.
+# The sidebar, replacing the row of header buttons. Flat rather than grouped:
+# the theme supports both, and at six pages the group headings would be longer
+# than the lists under them. Order is reading order, not alphabetical.
 nav:
-  - group: Start here
-    items:
-      - { page: index.html,     label: Overview }
-      - { page: guide.html,     label: Guide }
-
-  - group: In production
-    items:
-      - { page: tuning.html,    label: Tuning }
-      - { page: rails.html,     label: Rails }
-
-  - group: Reference
-    items:
-      - { page: api.html,       label: Reference }
-      - { page: upgrading.html, label: Upgrading }
+  - { page: index.html,     label: Overview }
+  - { page: guide.html,     label: Guide }
+  - { page: tuning.html,    label: Tuning }
+  - { page: rails.html,     label: Rails }
+  - { page: api.html,       label: Reference }
+  - { page: upgrading.html, label: Upgrading }
 
 exclude:
   - Gemfile
